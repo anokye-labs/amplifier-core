@@ -120,6 +120,7 @@ Each test layer has a distinct purpose:
 | **Proto equivalence tests** | Proto expansion matches hand-written Rust types | `src/generated/equivalence_tests.rs` |
 | **Python tests** | Behavioral compatibility — the PyO3 bridge works correctly | `tests/`, `bindings/python/tests/` |
 | **Switchover tests** | Python API contract — same imports, same behavior after Rust migration | `bindings/python/tests/test_switchover_*.py` |
+| **E2E smoke test** | Real-world validation — the built wheel works in an isolated install with real LLM calls | `scripts/e2e-smoke-test.sh` |
 
 **The compiler is the first test.** If it compiles and clippy is clean, the structural correctness bar is already met. Tests then verify behavior, not shape.
 
@@ -192,14 +193,22 @@ This rule applies **specifically to amplifier-core** because of its PyPI distrib
    - `crates/amplifier-core/Cargo.toml` (line 3)
    - `bindings/python/Cargo.toml` (line 3)
 
-3. **Commit, tag, and push:**
+3. **Run the E2E smoke test** before tagging:
+   ```bash
+   ./scripts/e2e-smoke-test.sh
+   ```
+   Validates the built wheel in an isolated Docker container with a real LLM session.
+   Requires Docker and `ANTHROPIC_API_KEY`. Do not tag until it passes.
+   See `context/release-mandate.md` for full details and incident playbook.
+
+4. **Commit, tag, and push:**
    ```bash
    git commit -am "chore: bump version to X.Y.Z"
    git tag vX.Y.Z
    git push origin main --tags
    ```
 
-4. **Verify CI triggers.** The `v*` tag triggers `rust-core-wheels.yml`, which builds wheels for all platforms (Linux x86/aarch64, macOS, Windows) and publishes to PyPI. The next PR does not start until PyPI publish is confirmed.
+5. **Verify CI triggers.** The `v*` tag triggers `rust-core-wheels.yml`, which builds wheels for all platforms (Linux x86/aarch64, macOS, Windows) and publishes to PyPI. The next PR does not start until PyPI publish is confirmed.
 
 ### Why the Script Exists
 

@@ -40,12 +40,66 @@ This rule exists **specifically** because `amplifier-core` publishes to PyPI and
    - `pyproject.toml` (line 3)
    - `crates/amplifier-core/Cargo.toml` (line 3)
    - `bindings/python/Cargo.toml` (line 3)
-3. Commit, tag, and push:
+3. Run the E2E smoke test (mandatory since v1.2.5):
+   ```bash
+   ./scripts/e2e-smoke-test.sh
+   ```
+   This builds a wheel from local source, installs it in an isolated Docker container alongside
+   the real `amplifier` CLI, and runs a real LLM-powered session exercising tool dispatch,
+   agent delegation, and recipe execution. It catches:
+   - Import/attribute errors in the Rust↔Python bridge
+   - Session startup crashes
+   - Tool dispatch failures
+   - Any Python exception during a real agent loop
+
+   **Requirements:** Docker running, `ANTHROPIC_API_KEY` set (or in `~/.amplifier/keys.env`).
+   Takes ~5 minutes. **Do not tag until this passes.**
+
+4. Commit, tag, and push:
    ```bash
    git commit -am "chore: bump version to X.Y.Z"
    git tag vX.Y.Z
    git push origin main --tags
    ```
-4. The `v*` tag triggers `rust-core-wheels.yml` → builds wheels for all platforms → publishes to PyPI.
+5. The `v*` tag triggers `rust-core-wheels.yml` → builds wheels for all platforms → publishes to PyPI.
 
 Full process details: `docs/CORE_DEVELOPMENT_PRINCIPLES.md` §10 — The Release Gate.
+
+---
+
+## Incident Playbook: When a Broken Version Reaches PyPI
+
+*Added after the v1.2.3/v1.2.4 incidents (March 2026).*
+
+### The Problem
+
+Once a version is published to PyPI, `uv tool install amplifier` and `pip install amplifier-core`
+serve it immediately. There is no "rollback" button. For `uv tool install` users specifically,
+there is no fast local rollback — users must wait for a fix.
+
+### The Playbook
+
+1. **Yank the broken version on PyPI** (immediately, ~30 seconds):
+   - Go to https://pypi.org/manage/project/amplifier-core/release/X.Y.Z/
+   - Click "Options" → "Yank release"
+   - Add reason: "Broken: [brief description]"
+
+   Yanking tells pip/uv to skip this version for new installs. New `amplifier update`
+   invocations will resolve to the last non-yanked version.
+
+2. **Fix forward** — do NOT try to reuse the yanked version number:
+   - Fix the bug on `main`
+   - Run the E2E smoke test (`./scripts/e2e-smoke-test.sh`)
+   - Bump to the next PATCH version
+   - Tag + push as normal
+
+3. **Post-mortem**: Add the incident to the history below.
+
+### Incident History
+
+| Version | Date | Root Cause | Impact | Resolution |
+|---------|------|-----------|--------|------------|
+| v1.0.7→v1.0.8 | 2026-03-03 | RetryConfig break for provider-anthropic | Provider users broken | Emergency hotfix |
+| v1.2.3 | 2026-03-16 | `session_state` crash — missing dict field on RustCoordinator | CLI startup crashed | Yanked |
+| v1.2.4 | 2026-03-16 | `_tool_dispatch_context` crash — RustCoordinator lacked `__dict__` | All tool dispatch crashed | Yanked |
+| v1.2.4 | 2026-03-16 | Version files not bumped before tagging | PyPI publish rejected (400) | Re-tagged |
