@@ -160,15 +160,20 @@ class TestBuildWheelsWorkflow:
 
     # -- trigger configuration --
 
-    def test_triggers_on_push_to_rust_core(self):
-        wf = self._load()
-        push_branches = wf["on"]["push"]["branches"]
-        assert "rust-core" in push_branches
+    def test_does_not_trigger_on_branch_push(self):
+        """Wheel builds should only run for release tags, not every branch push.
 
-    def test_triggers_on_push_to_main(self):
+        Branch-push triggers were removed in the CI optimisation pass to avoid
+        burning minutes on the 40-minute Rust+wasmtime build on every commit.
+        The test CI (rust-core-ci.yml) still runs on every branch push.
+        """
         wf = self._load()
-        push_branches = wf["on"]["push"]["branches"]
-        assert "main" in push_branches
+        push_config = wf["on"].get("push", {})
+        # 'branches' key must be absent — only 'tags' is allowed under push
+        assert "branches" not in push_config, (
+            "Wheel workflow must NOT trigger on branch pushes — "
+            "only on 'v*' tags and workflow_dispatch"
+        )
 
     def test_triggers_on_tag(self):
         wf = self._load()
