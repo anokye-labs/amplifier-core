@@ -63,6 +63,14 @@ pub(crate) struct PyCoordinator {
     pub(crate) display_system_obj: Py<PyAny>,
     /// Module loader (Python object or None).
     pub(crate) loader_obj: Py<PyAny>,
+    /// Mutable state dict — backward-compat `session_state` attribute.
+    ///
+    /// The CLI (and other consumers) treat `coordinator.session_state` as a
+    /// plain mutable `dict`: they do `"key" in session_state`,
+    /// `session_state["key"] = value`, and `session_state.get("key")`.
+    /// This field backs that property; it is completely independent of the
+    /// `session_ref` object.
+    pub(crate) session_state_dict: Py<PyDict>,
 }
 
 #[pymethods]
@@ -169,6 +177,7 @@ impl PyCoordinator {
                 .map(|d| d.unbind())
                 .unwrap_or_else(|| py.None()),
             loader_obj: py.None(),
+            session_state_dict: PyDict::new(py).unbind(),
         })
     }
 
@@ -198,13 +207,25 @@ impl PyCoordinator {
         self.session_ref.bind(py).clone()
     }
 
-    /// Backward-compatibility alias for `session`.
+    /// Mutable state dict exposed as `coordinator.session_state`.
     ///
-    /// Older code may reference `coordinator.session_state`; this property
-    /// ensures those references continue to work.
+    /// The CLI (and other consumers) treat this as a plain Python `dict` and
+    /// perform operations like:
+    ///   - `"active_mode" not in coordinator.session_state`
+    ///   - `coordinator.session_state["active_mode"] = None`
+    ///   - `coordinator.session_state.get("key")`
+    ///
+    /// This is **not** an alias for the session object — it is an independent
+    /// mutable dict that callers own and write into freely.
     #[getter]
-    fn session_state<'py>(&self, py: Python<'py>) -> Bound<'py, PyAny> {
-        self.session_ref.bind(py).clone()
+    fn session_state<'py>(&self, py: Python<'py>) -> Py<PyDict> {
+        self.session_state_dict.clone_ref(py)
+    }
+
+    /// Allow callers to replace the entire `session_state` dict if needed.
+    #[setter]
+    fn set_session_state(&mut self, value: Py<PyDict>) {
+        self.session_state_dict = value;
     }
 
     /// Update the session back-reference after construction.
