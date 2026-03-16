@@ -478,5 +478,3 @@ impl PyCoordinator {
         Ok(dict)
     }
 }
-
-
