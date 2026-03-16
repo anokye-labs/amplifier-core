@@ -143,17 +143,25 @@ docker exec "$CONTAINER_NAME" bash -c "
 # ---------------------------------------------------------------------------
 
 log "Injecting local wheel into container..."
-docker cp "$WHEEL" "$CONTAINER_NAME:/tmp/local-core.whl" \
+WHEEL_BASENAME=$(basename "$WHEEL")
+docker cp "$WHEEL" "$CONTAINER_NAME:/tmp/$WHEEL_BASENAME" \
     || fail "Wheel copy to container failed"
+log "Wheel copied as: $WHEEL_BASENAME"
 
 log "Overriding amplifier-core with local wheel..."
-docker exec "$CONTAINER_NAME" bash -c "
+OVERRIDE_OUTPUT=$(docker exec "$CONTAINER_NAME" bash -c "
     uv pip install \
         --python /root/.local/share/uv/tools/amplifier/bin/python3 \
         --force-reinstall --no-deps \
-        /tmp/local-core.whl 2>&1 | tail -3
-    echo 'Override OK'
-" || fail "Wheel override failed"
+        '/tmp/$WHEEL_BASENAME' 2>&1
+") || fail "Wheel override failed — uv pip install returned non-zero"
+
+# Confirm uv actually installed the package (not silently skipped / errored)
+if ! echo "$OVERRIDE_OUTPUT" | grep -qiE "installed|already satisfied"; then
+    echo "$OVERRIDE_OUTPUT"
+    fail "Wheel override failed — uv did not report a successful install. See output above."
+fi
+log "Override output: $(echo "$OVERRIDE_OUTPUT" | tail -3)"
 
 # ---------------------------------------------------------------------------
 # Step 6: Verify installed version
@@ -165,6 +173,15 @@ INSTALLED_VERSION=$(docker exec "$CONTAINER_NAME" bash -c "
     amplifier --version 2>&1
 ")
 info "Installed: $INSTALLED_VERSION"
+
+# Confirm the core version actually changed to our local build
+LOCAL_CORE_VER=$(echo "$WHEEL_BASENAME" | grep -oP '(?<=amplifier_core-)[^-]+' || true)
+if [[ -n "$LOCAL_CORE_VER" ]]; then
+    if ! echo "$INSTALLED_VERSION" | grep -q "core $LOCAL_CORE_VER"; then
+        fail "Wheel override did not take effect — expected 'core $LOCAL_CORE_VER' but got: $INSTALLED_VERSION"
+    fi
+    log "Core version confirmed: $LOCAL_CORE_VER ✓"
+fi
 
 # ---------------------------------------------------------------------------
 # Step 7: Run the smoke test
