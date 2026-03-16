@@ -2,7 +2,6 @@ name: Build Wheels
 
 on:
   push:
-    branches: [rust-core, main]
     tags: ['v*']
   workflow_dispatch:
 
