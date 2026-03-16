@@ -31,7 +31,7 @@ mod mount_points;
 /// The `mount_points` dict is directly accessible and mutable from Python,
 /// matching `ModuleCoordinator.mount_points` behavior that the ecosystem
 /// (pytest_plugin, testing.py) depends on.
-#[pyclass(name = "RustCoordinator", subclass)]
+#[pyclass(name = "RustCoordinator", subclass, dict)]
 pub(crate) struct PyCoordinator {
     /// Rust kernel coordinator (for reset_turn, injection tracking, config).
     pub(crate) inner: Arc<amplifier_core::Coordinator>,
