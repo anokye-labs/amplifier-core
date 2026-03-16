@@ -11,3 +11,12 @@ resolver = "2"
 lto = "fat"
 codegen-units = 1
 strip = true
+
+# CI/distribution profile: faster compilation, nearly identical output.
+# Uses thin LTO and 4 codegen units instead of fat LTO + 1 codegen unit.
+# Produces slightly larger binaries (~5-10%) but compiles 2-4x faster.
+# Use for wheel builds: maturin ... --profile dist
+[profile.dist]
+inherits = "release"
+lto = "thin"
+codegen-units = 4
