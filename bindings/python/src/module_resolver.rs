@@ -2,6 +2,9 @@
 // Module resolver bindings — resolve_module, load_wasm_from_path
 // ---------------------------------------------------------------------------
 
+#[cfg(not(feature = "wasm"))]
+use pyo3::exceptions::PyRuntimeError;
+#[cfg(feature = "wasm")]
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -62,6 +65,7 @@ pub(crate) fn resolve_module(py: Python<'_>, path: String) -> PyResult<Py<PyDict
 /// Returns a dict with "status" = "loaded" and "module_type" on success.
 /// NOTE: This function loads into a throwaway test coordinator. For production
 /// use, prefer `load_and_mount_wasm` which mounts into a real coordinator.
+#[cfg(feature = "wasm")]
 #[pyfunction]
 pub(crate) fn load_wasm_from_path(py: Python<'_>, path: String) -> PyResult<Py<PyDict>> {
     let manifest = amplifier_core::module_resolver::resolve_module(std::path::Path::new(&path))

@@ -28,6 +28,7 @@ mod hooks;
 mod module_resolver;
 mod retry;
 mod session;
+#[cfg(feature = "wasm")]
 mod wasm;
 
 // ---------------------------------------------------------------------------
@@ -38,9 +39,12 @@ pub(crate) use cancellation::PyCancellationToken;
 pub(crate) use coordinator::PyCoordinator;
 pub(crate) use errors::PyProviderError;
 pub(crate) use hooks::{PyHookRegistry, PyUnregisterFn};
-pub(crate) use module_resolver::{load_wasm_from_path, resolve_module};
+pub(crate) use module_resolver::resolve_module;
+#[cfg(feature = "wasm")]
+pub(crate) use module_resolver::load_wasm_from_path;
 pub(crate) use retry::{classify_error_message, compute_delay, PyRetryConfig};
 pub(crate) use session::PySession;
+#[cfg(feature = "wasm")]
 pub(crate) use wasm::{
     load_and_mount_wasm, PyWasmApproval, PyWasmContext, PyWasmHook, PyWasmOrchestrator,
     PyWasmProvider, PyWasmTool,
@@ -64,17 +68,23 @@ fn _engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyCoordinator>()?;
     m.add_class::<PyProviderError>()?;
     m.add_class::<PyRetryConfig>()?;
-    m.add_class::<PyWasmTool>()?;
-    m.add_class::<PyWasmProvider>()?;
-    m.add_class::<PyWasmHook>()?;
-    m.add_class::<PyWasmContext>()?;
-    m.add_class::<PyWasmOrchestrator>()?;
-    m.add_class::<PyWasmApproval>()?;
+    #[cfg(feature = "wasm")]
+    {
+        m.add_class::<PyWasmTool>()?;
+        m.add_class::<PyWasmProvider>()?;
+        m.add_class::<PyWasmHook>()?;
+        m.add_class::<PyWasmContext>()?;
+        m.add_class::<PyWasmOrchestrator>()?;
+        m.add_class::<PyWasmApproval>()?;
+    }
     m.add_function(wrap_pyfunction!(classify_error_message, m)?)?;
     m.add_function(wrap_pyfunction!(compute_delay, m)?)?;
     m.add_function(wrap_pyfunction!(resolve_module, m)?)?;
-    m.add_function(wrap_pyfunction!(load_wasm_from_path, m)?)?;
-    m.add_function(wrap_pyfunction!(load_and_mount_wasm, m)?)?;
+    #[cfg(feature = "wasm")]
+    {
+        m.add_function(wrap_pyfunction!(load_wasm_from_path, m)?)?;
+        m.add_function(wrap_pyfunction!(load_and_mount_wasm, m)?)?;
+    }
 
     // -----------------------------------------------------------------------
     // Event constants — expose all 41 canonical events from amplifier_core
