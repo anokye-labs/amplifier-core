@@ -55,7 +55,16 @@ This rule exists **specifically** because `amplifier-core` publishes to PyPI and
    **Requirements:** Docker running, `ANTHROPIC_API_KEY` set (or in `~/.amplifier/keys.env`).
    Takes ~5 minutes. **Do not tag until this passes.**
 
-4. Commit, tag, and push:
+4. Verify no `[tool.uv.sources]` git overrides for `amplifier-core` exist in downstream repos:
+   ```bash
+   for repo in amplifier amplifier-app-cli amplifier-foundation; do
+     echo "=== $repo ==="
+     gh api repos/microsoft/$repo/contents/pyproject.toml --jq '.content' | base64 -d | grep -A2 'amplifier-core.*git' && echo "WARNING: git override found!" || echo "OK"
+   done
+   ```
+   If any repo has a git source override for amplifier-core on main, the PyPI publish will not reach users correctly.
+
+5. Commit, tag, and push:
    ```bash
    git commit -am "chore: bump version to X.Y.Z"
    git tag vX.Y.Z
