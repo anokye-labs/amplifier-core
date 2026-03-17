@@ -11,7 +11,14 @@ def test_rust_engine_has_version():
     """Verify _engine exposes __version__."""
     from amplifier_core._engine import __version__
 
-    assert __version__ == "1.0.0"
+    # Version comes from env!("CARGO_PKG_VERSION") — must match Cargo.toml
+    assert __version__ is not None
+    assert isinstance(__version__, str)
+    assert len(__version__) > 0
+    # Verify it looks like a semver version (X.Y.Z)
+    parts = __version__.split(".")
+    assert len(parts) == 3, f"Expected semver X.Y.Z, got {__version__}"
+    assert all(p.isdigit() for p in parts), f"Expected numeric semver, got {__version__}"
 
 
 def test_rust_engine_has_types():

@@ -56,8 +56,14 @@ Provide:
 - Note: this applies specifically to amplifier-core (PyPI package), not all ecosystem repos
 - The three files that must be bumped in sync: `pyproject.toml`, `crates/amplifier-core/Cargo.toml`, `bindings/python/Cargo.toml`
 - The atomic script: `python scripts/bump_version.py X.Y.Z`
+- **The E2E smoke test**: `./scripts/e2e-smoke-test.sh` must pass before tagging. It validates
+  the built wheel in an isolated Docker container with a real LLM session. This gate was added
+  after three incidents in v1.2.3/v1.2.4 where the wheel was broken but all unit/integration
+  tests passed.
 - The tag push: `git tag vX.Y.Z && git push origin main --tags`
 - Why: `v*` tag triggers `rust-core-wheels.yml` → PyPI publish; this is the only path to production
+- **Incident recovery**: If a broken version reaches PyPI, see the Incident Playbook in
+  `context/release-mandate.md` — yank on PyPI, fix forward, never reuse a version number.
 
 ---
 
@@ -242,7 +248,8 @@ See @core:docs/contracts/[NAME]_CONTRACT.md for complete specification.
 - **Two-implementation rule** before promoting anything
 - **Backward compatibility** is sacred
 - **Reference contract docs** - don't copy their content
-- **Release gate is mandatory** — every merge to amplifier-core main requires a version bump, `v*` tag, and push before the next PR starts. See CORE_DEVELOPMENT_PRINCIPLES.md §10.
+- **Release gate is mandatory** — every merge to amplifier-core main requires a version bump, E2E smoke test, `v*` tag, and push before the next PR starts. See CORE_DEVELOPMENT_PRINCIPLES.md §10.
+- **E2E before tagging** — `./scripts/e2e-smoke-test.sh` must pass before any `v*` tag. Unit tests are necessary but not sufficient; the v1.2.3/v1.2.4 incidents proved that 549 passing tests don't guarantee the wheel works.
 
 **Your Mantra**: "The center stays still so the edges can move fast. I help ensure the kernel remains tiny, stable, and boring."
 
