@@ -380,6 +380,38 @@ def load_and_mount_wasm(coordinator: RustCoordinator, path: str) -> dict[str, An
     """
     ...
 
+def proto_chat_request_to_json(proto_bytes: bytes) -> str:
+    """Decode proto-encoded ``ChatRequest`` bytes and return a JSON string.
+
+    Steps:
+    1. Decodes proto bytes via ``ChatRequest::decode(proto_bytes)``
+    2. Converts to native via ``proto_chat_request_to_native``
+    3. Serializes to JSON via ``serde_json::to_string``
+
+    Raises:
+        ValueError: If the bytes cannot be decoded as a proto ``ChatRequest``
+            or if serialization to JSON fails.
+    """
+    ...
+
+def json_to_proto_chat_response(json_str: str) -> bytes:
+    """Serialize a JSON string to proto-encoded ``ChatResponse`` bytes.
+
+    Steps:
+    1. Deserializes JSON to native ``ChatResponse`` via ``serde_json::from_str``
+    2. Converts to proto via ``native_chat_response_to_proto``
+    3. Encodes to bytes via ``proto.encode_to_vec()``
+
+    The encoding uses dual-write: both the legacy ``content`` string field
+    (field 1) and the typed ``content_blocks`` field (field 7) are populated
+    for backwards compatibility.
+
+    Raises:
+        ValueError: If the JSON string cannot be deserialized as a
+            ``ChatResponse``.
+    """
+    ...
+
 def classify_error_message(message: str) -> str:
     """Classify an error message string into an error category.
 

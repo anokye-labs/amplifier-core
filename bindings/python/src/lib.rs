@@ -81,6 +81,28 @@ fn proto_chat_request_to_json(proto_bytes: &[u8]) -> PyResult<String> {
     })
 }
 
+/// Deserialize a JSON string to a native `ChatResponse` and encode as proto bytes.
+///
+/// This function:
+/// 1. Deserializes JSON to native `ChatResponse` via `serde_json::from_str`
+/// 2. Converts to proto via `native_chat_response_to_proto`
+/// 3. Encodes to bytes via `proto.encode_to_vec()`
+#[pyfunction]
+fn json_to_proto_chat_response(json_str: &str) -> PyResult<Vec<u8>> {
+    use amplifier_core::generated::conversions::native_chat_response_to_proto;
+    use amplifier_core::messages::ChatResponse;
+
+    let native_response: ChatResponse = serde_json::from_str(json_str).map_err(|e| {
+        pyo3::exceptions::PyValueError::new_err(format!(
+            "Failed to deserialize ChatResponse from JSON: {e}"
+        ))
+    })?;
+
+    let proto = native_chat_response_to_proto(&native_response);
+
+    Ok(proto.encode_to_vec())
+}
+
 // ---------------------------------------------------------------------------
 // Module registration
 // ---------------------------------------------------------------------------
@@ -112,6 +134,7 @@ fn _engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(compute_delay, m)?)?;
     m.add_function(wrap_pyfunction!(resolve_module, m)?)?;
     m.add_function(wrap_pyfunction!(proto_chat_request_to_json, m)?)?;
+    m.add_function(wrap_pyfunction!(json_to_proto_chat_response, m)?)?;
     #[cfg(feature = "wasm")]
     {
         m.add_function(wrap_pyfunction!(load_wasm_from_path, m)?)?;

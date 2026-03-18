@@ -80,6 +80,7 @@ version = "1.2.6"
 dependencies = [
  "amplifier-core",
  "log",
+ "prost",
  "pyo3",
  "pyo3-async-runtimes",
  "pyo3-log",
