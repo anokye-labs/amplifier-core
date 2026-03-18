@@ -377,6 +377,7 @@ pub struct ChatRequest {
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ChatResponse {
+    /// DEPRECATED: use content_blocks instead.
     #[prost(string, tag = "1")]
     pub content: ::prost::alloc::string::String,
     #[prost(message, repeated, tag = "2")]
@@ -390,6 +391,9 @@ pub struct ChatResponse {
     pub finish_reason: ::prost::alloc::string::String,
     #[prost(string, tag = "6")]
     pub metadata_json: ::prost::alloc::string::String,
+    /// NEW: typed content blocks, replaces the JSON string in field 1.
+    #[prost(message, repeated, tag = "7")]
+    pub content_blocks: ::prost::alloc::vec::Vec<ContentBlock>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ToolResult {

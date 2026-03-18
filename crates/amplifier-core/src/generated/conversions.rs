@@ -902,6 +902,7 @@ pub fn native_chat_response_to_proto(
             .as_ref()
             .map(|m| to_json_or_warn(m, "ChatResponse metadata"))
             .unwrap_or_default(),
+        content_blocks: vec![],
     }
 }
 
