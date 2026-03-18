@@ -250,16 +250,27 @@ impl PyHookRegistry {
             py,
             pyo3_async_runtimes::tokio::future_into_py(py, async move {
                 let results = inner.emit_and_collect(&event, value, timeout_dur).await;
-                // Convert each HashMap<String, Value> to a JSON string.
-                // Returns Vec<String> which becomes a Python list of strings.
-                let json_strings: Vec<String> = results
-                    .iter()
-                    .map(|r| serde_json::to_string(r).unwrap_or_else(|e| {
-                        log::warn!("Failed to serialize emit_and_collect result to JSON (using empty object): {e}");
-                        "{}".to_string()
-                    }))
-                    .collect();
-                Ok(json_strings)
+                // Convert each HashMap<String, Value> to a Python dict.
+                // Serializes each result to a JSON string then json.loads() to dict.
+                // Returns Py<PyAny> (a Python list of dicts).
+                Python::try_attach(|py| -> PyResult<Py<PyAny>> {
+                    let json_mod = py.import("json")?;
+                    let list = pyo3::types::PyList::empty(py);
+                    for r in &results {
+                        let json_str = serde_json::to_string(r).unwrap_or_else(|e| {
+                            log::warn!("Failed to serialize emit_and_collect result to JSON (using empty object): {e}");
+                            "{}".to_string()
+                        });
+                        let dict = json_mod.call_method1("loads", (&json_str,))?;
+                        list.append(dict)?;
+                    }
+                    Ok(list.into_any().unbind())
+                })
+                .ok_or_else(|| {
+                    PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                        "Failed to attach to Python runtime",
+                    )
+                })?
             }),
         )
     }
