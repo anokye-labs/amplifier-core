@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
+use pyo3::types::{PyDict, PyList};
 use serde_json::Value;
 
 use crate::bridges::PyHookHandlerBridge;
@@ -224,8 +224,9 @@ impl PyHookRegistry {
     /// Unlike emit() which processes action semantics (deny short-circuits, etc.),
     /// this method simply collects result.data from all handlers for aggregation.
     ///
-    /// Returns a list of JSON strings, each representing a handler's result.data.
-    /// The Python switchover shim (Milestone 4) will parse these into dicts.
+    /// Returns a Python `list[dict]`, where each dict is the `result.data`
+    /// from one handler response. Each `HashMap<String, Value>` is serialized
+    /// to JSON and parsed back into a Python dict via `json.loads()`.
     ///
     /// Matches Python `HookRegistry.emit_and_collect(event, data, timeout=1.0)`.
     #[pyo3(signature = (event, data, timeout = 1.0))]
@@ -255,7 +256,7 @@ impl PyHookRegistry {
                 // Returns Py<PyAny> (a Python list of dicts).
                 Python::try_attach(|py| -> PyResult<Py<PyAny>> {
                     let json_mod = py.import("json")?;
-                    let list = pyo3::types::PyList::empty(py);
+                    let list = PyList::empty(py);
                     for r in &results {
                         let json_str = serde_json::to_string(r).unwrap_or_else(|e| {
                             log::warn!("Failed to serialize emit_and_collect result to JSON (using empty object): {e}");
