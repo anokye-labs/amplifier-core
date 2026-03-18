@@ -14,6 +14,7 @@
 //! | `RustCoordinator`       | [`PyCoordinator`]    | `amplifier_core::Coordinator` |
 
 use pyo3::prelude::*;
+use prost::Message as ProstMessage;
 
 // ---------------------------------------------------------------------------
 // Submodules
@@ -51,6 +52,36 @@ pub(crate) use wasm::{
 };
 
 // ---------------------------------------------------------------------------
+// Proto bridge functions
+// ---------------------------------------------------------------------------
+
+/// Decode proto-encoded `ChatRequest` bytes and return a JSON string.
+///
+/// This function:
+/// 1. Decodes proto bytes via `ChatRequest::decode(proto_bytes)`
+/// 2. Converts to native via `proto_chat_request_to_native`
+/// 3. Serializes to JSON via `serde_json::to_string`
+#[pyfunction]
+fn proto_chat_request_to_json(proto_bytes: &[u8]) -> PyResult<String> {
+    use amplifier_core::generated::amplifier_module::ChatRequest;
+    use amplifier_core::generated::conversions::proto_chat_request_to_native;
+
+    let proto_request = ChatRequest::decode(proto_bytes).map_err(|e| {
+        pyo3::exceptions::PyValueError::new_err(format!(
+            "Failed to decode proto ChatRequest: {e}"
+        ))
+    })?;
+
+    let native_request = proto_chat_request_to_native(proto_request);
+
+    serde_json::to_string(&native_request).map_err(|e| {
+        pyo3::exceptions::PyValueError::new_err(format!(
+            "Failed to serialize ChatRequest to JSON: {e}"
+        ))
+    })
+}
+
+// ---------------------------------------------------------------------------
 // Module registration
 // ---------------------------------------------------------------------------
 
@@ -80,6 +111,7 @@ fn _engine(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(classify_error_message, m)?)?;
     m.add_function(wrap_pyfunction!(compute_delay, m)?)?;
     m.add_function(wrap_pyfunction!(resolve_module, m)?)?;
+    m.add_function(wrap_pyfunction!(proto_chat_request_to_json, m)?)?;
     #[cfg(feature = "wasm")]
     {
         m.add_function(wrap_pyfunction!(load_wasm_from_path, m)?)?;
