@@ -902,7 +902,11 @@ pub fn native_chat_response_to_proto(
             .as_ref()
             .map(|m| to_json_or_warn(m, "ChatResponse metadata"))
             .unwrap_or_default(),
-        content_blocks: vec![],
+        content_blocks: response
+            .content
+            .iter()
+            .map(|b| native_content_block_to_proto(b.clone()))
+            .collect(),
     }
 }
 
@@ -918,7 +922,20 @@ pub fn proto_chat_response_to_native(
     response: super::amplifier_module::ChatResponse,
 ) -> crate::messages::ChatResponse {
     crate::messages::ChatResponse {
-        content: if response.content.is_empty() {
+        content: if !response.content_blocks.is_empty() {
+            response
+                .content_blocks
+                .into_iter()
+                .filter_map(|b| {
+                    if b.block.is_none() {
+                        log::warn!("Skipping invalid ContentBlock with no block variant in ChatResponse content_blocks");
+                        None
+                    } else {
+                        Some(proto_content_block_to_native(b))
+                    }
+                })
+                .collect()
+        } else if response.content.is_empty() {
             Vec::new()
         } else {
             from_json_or_default(&response.content, "ChatResponse content")
@@ -2374,5 +2391,86 @@ mod tests {
         assert_eq!(restored.messages[1].role, Role::User);
         assert_eq!(restored.model, Some("claude-3-opus".into()));
         assert_eq!(restored.temperature, Some(1.0));
+    }
+
+    // -- ChatResponse content_blocks dual-write tests --
+
+    #[test]
+    fn chat_response_content_blocks_populated_on_write() {
+        use crate::messages::{ChatResponse, ContentBlock};
+
+        let original = ChatResponse {
+            content: vec![ContentBlock::Text {
+                text: "hello dual-write".into(),
+                visibility: None,
+                extensions: HashMap::new(),
+            }],
+            tool_calls: None,
+            usage: None,
+            degradation: None,
+            finish_reason: None,
+            metadata: None,
+            extensions: HashMap::new(),
+        };
+
+        let proto = super::native_chat_response_to_proto(&original);
+
+        // Legacy JSON content field must be populated
+        assert!(!proto.content.is_empty(), "legacy content JSON must be non-empty");
+
+        // New typed content_blocks field must also be populated (dual-write)
+        assert_eq!(proto.content_blocks.len(), 1, "content_blocks must have 1 entry");
+
+        // The block must be a TextBlock with the correct text
+        use super::super::amplifier_module::content_block::Block;
+        match &proto.content_blocks[0].block {
+            Some(Block::TextBlock(tb)) => {
+                assert_eq!(tb.text, "hello dual-write");
+            }
+            other => panic!("expected TextBlock, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn chat_response_prefers_content_blocks_on_read() {
+        use crate::messages::ContentBlock;
+
+        // Build a proto message with BOTH content (legacy JSON) and content_blocks typed field.
+        // The typed field should take precedence.
+        let typed_text = "typed block wins";
+        let legacy_text = "legacy json loses";
+
+        let legacy_json = serde_json::to_string(&vec![serde_json::json!({
+            "type": "text",
+            "text": legacy_text
+        })])
+        .unwrap();
+
+        let proto = super::super::amplifier_module::ChatResponse {
+            content: legacy_json,
+            content_blocks: vec![super::super::amplifier_module::ContentBlock {
+                block: Some(super::super::amplifier_module::content_block::Block::TextBlock(
+                    super::super::amplifier_module::TextBlock {
+                        text: typed_text.into(),
+                    },
+                )),
+                visibility: 0,
+            }],
+            tool_calls: vec![],
+            usage: None,
+            degradation: None,
+            finish_reason: String::new(),
+            metadata_json: String::new(),
+        };
+
+        let restored = super::proto_chat_response_to_native(proto);
+
+        assert_eq!(restored.content.len(), 1, "expected 1 content block");
+        match &restored.content[0] {
+            ContentBlock::Text { text, .. } => {
+                assert_eq!(text, typed_text, "typed content_blocks should be preferred over legacy JSON");
+            }
+            other => panic!("expected Text block, got {:?}", other),
+        }
     }
 }
