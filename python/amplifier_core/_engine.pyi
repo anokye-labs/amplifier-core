@@ -85,6 +85,13 @@ class RustHookRegistry:
     TOOL_ERROR: str
     CANCEL_REQUESTED: str
     CANCEL_COMPLETED: str
+    # Legacy event constants (Python HookRegistry compat)
+    PROMPT_SUBMIT: str
+    TOOL_PRE: str
+    TOOL_POST: str
+    CONTEXT_PRE_COMPACT: str
+    ORCHESTRATOR_COMPLETE: str
+    USER_NOTIFICATION: str
 
     def __init__(self) -> None: ...
     def register(
