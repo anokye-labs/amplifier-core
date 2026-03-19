@@ -13,8 +13,7 @@ async def test_register_method():
     registry = HookRegistry()
 
     async def handler(event, data):
-        data["handled"] = True
-        return HookResult(action="continue")
+        return HookResult(action="modify", data={**data, "handled": True})
 
     unregister = registry.register("test:event", handler, name="test-handler")
 
@@ -41,8 +40,7 @@ async def test_on_alias():
     registry = HookRegistry()
 
     async def handler(event, data):
-        data["handled_via_on"] = True
-        return HookResult(action="continue")
+        return HookResult(action="modify", data={**data, "handled_via_on": True})
 
     unregister = registry.on("test:event", handler, name="on-handler")
 
@@ -69,12 +67,12 @@ async def test_register_and_on_are_equivalent():
     registry = HookRegistry()
 
     async def handler1(event, data):
-        data.setdefault("calls", []).append("handler1")
-        return HookResult(action="continue")
+        calls = data.get("calls", []) + ["handler1"]
+        return HookResult(action="modify", data={**data, "calls": calls})
 
     async def handler2(event, data):
-        data.setdefault("calls", []).append("handler2")
-        return HookResult(action="continue")
+        calls = data.get("calls", []) + ["handler2"]
+        return HookResult(action="modify", data={**data, "calls": calls})
 
     # Register one with each method
     registry.register("test:event", handler1, name="handler1")
@@ -100,12 +98,12 @@ async def test_hook_priority():
     registry = HookRegistry()
 
     async def low_priority(event, data):
-        data.setdefault("order", []).append("low")
-        return HookResult(action="continue")
+        order = data.get("order", []) + ["low"]
+        return HookResult(action="modify", data={**data, "order": order})
 
     async def high_priority(event, data):
-        data.setdefault("order", []).append("high")
-        return HookResult(action="continue")
+        order = data.get("order", []) + ["high"]
+        return HookResult(action="modify", data={**data, "order": order})
 
     # Register with different priorities (lower number = higher priority)
     registry.register("test:event", low_priority, priority=10, name="low")
@@ -164,8 +162,7 @@ async def test_hook_error_handling():
         raise RuntimeError("Test error")
 
     async def working_handler(event, data):
-        data["still_works"] = True
-        return HookResult(action="continue")
+        return HookResult(action="modify", data={**data, "still_works": True})
 
     registry.register("test:event", failing_handler, priority=5)
     registry.register("test:event", working_handler, priority=10)
