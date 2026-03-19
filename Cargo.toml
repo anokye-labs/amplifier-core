@@ -2,6 +2,7 @@
 members = [
     "crates/amplifier-core",
     "crates/amplifier-guest",
+    "crates/amplifier-ffi",
     "bindings/python",
     "bindings/node",
 ]

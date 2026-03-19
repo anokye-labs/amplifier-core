@@ -1,0 +1,5 @@
+language = "C"
+include_guard = "AMPLIFIER_FFI_H"
+
+[export]
+prefix = "Amplifier"
