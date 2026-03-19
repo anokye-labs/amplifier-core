@@ -2416,10 +2416,17 @@ mod tests {
         let proto = super::native_chat_response_to_proto(&original);
 
         // Legacy JSON content field must be populated
-        assert!(!proto.content.is_empty(), "legacy content JSON must be non-empty");
+        assert!(
+            !proto.content.is_empty(),
+            "legacy content JSON must be non-empty"
+        );
 
         // New typed content_blocks field must also be populated (dual-write)
-        assert_eq!(proto.content_blocks.len(), 1, "content_blocks must have 1 entry");
+        assert_eq!(
+            proto.content_blocks.len(),
+            1,
+            "content_blocks must have 1 entry"
+        );
 
         // The block must be a TextBlock with the correct text
         use super::super::amplifier_module::content_block::Block;
@@ -2449,11 +2456,13 @@ mod tests {
         let proto = super::super::amplifier_module::ChatResponse {
             content: legacy_json,
             content_blocks: vec![super::super::amplifier_module::ContentBlock {
-                block: Some(super::super::amplifier_module::content_block::Block::TextBlock(
-                    super::super::amplifier_module::TextBlock {
-                        text: typed_text.into(),
-                    },
-                )),
+                block: Some(
+                    super::super::amplifier_module::content_block::Block::TextBlock(
+                        super::super::amplifier_module::TextBlock {
+                            text: typed_text.into(),
+                        },
+                    ),
+                ),
                 visibility: 0,
             }],
             tool_calls: vec![],
@@ -2468,7 +2477,10 @@ mod tests {
         assert_eq!(restored.content.len(), 1, "expected 1 content block");
         match &restored.content[0] {
             ContentBlock::Text { text, .. } => {
-                assert_eq!(text, typed_text, "typed content_blocks should be preferred over legacy JSON");
+                assert_eq!(
+                    text, typed_text,
+                    "typed content_blocks should be preferred over legacy JSON"
+                );
             }
             other => panic!("expected Text block, got {:?}", other),
         }
