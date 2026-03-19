@@ -335,13 +335,15 @@ message ChatRequest {
 }
 
 message ChatResponse {
-  string                    content       = 1;
+  string                    content       = 1;  // DEPRECATED: use content_blocks instead.
   repeated ToolCallMessage  tool_calls    = 2;
   Usage                     usage         = 3;
   Degradation               degradation   = 4;
   // Completion stop reason: "stop", "tool_calls", "length", "content_filter".
   string                    finish_reason = 5;
   string                    metadata_json = 6;
+  // NEW: typed content blocks, replaces the JSON string in field 1.
+  repeated ContentBlock     content_blocks = 7;
 }
 
 // ---------------------------------------------------------------------------

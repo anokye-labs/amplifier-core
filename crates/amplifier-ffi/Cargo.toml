@@ -1,0 +1,13 @@
+[package]
+name = "amplifier-ffi"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+amplifier-core = { path = "../../crates/amplifier-core" }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
+serde_json = "1"
+log = "0.4"

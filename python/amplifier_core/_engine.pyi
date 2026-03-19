@@ -68,23 +68,15 @@ class RustHookRegistry:
     Drop-in replacement for ``amplifier_core.hooks.HookRegistry``.
     """
 
-    # Event constants
+    # Event constants — exactly the 8 #[classattr] entries from bindings/python/src/hooks.rs
     SESSION_START: str
     SESSION_END: str
-    SESSION_ERROR: str
-    SESSION_RESUME: str
-    SESSION_FORK: str
-    TURN_START: str
-    TURN_END: str
-    TURN_ERROR: str
-    PROVIDER_REQUEST: str
-    PROVIDER_RESPONSE: str
-    PROVIDER_ERROR: str
-    TOOL_CALL: str
-    TOOL_RESULT: str
-    TOOL_ERROR: str
-    CANCEL_REQUESTED: str
-    CANCEL_COMPLETED: str
+    PROMPT_SUBMIT: str
+    TOOL_PRE: str
+    TOOL_POST: str
+    CONTEXT_PRE_COMPACT: str
+    ORCHESTRATOR_COMPLETE: str
+    USER_NOTIFICATION: str
 
     def __init__(self) -> None: ...
     def register(
@@ -377,6 +369,38 @@ def load_and_mount_wasm(coordinator: RustCoordinator, path: str) -> dict[str, An
     Raises:
         ValueError: If the path doesn't contain a WASM module.
         RuntimeError: If engine creation or module loading fails.
+    """
+    ...
+
+def proto_chat_request_to_json(proto_bytes: bytes) -> str:
+    """Decode proto-encoded ``ChatRequest`` bytes and return a JSON string.
+
+    Steps:
+    1. Decodes proto bytes via ``ChatRequest::decode(proto_bytes)``
+    2. Converts to native via ``proto_chat_request_to_native``
+    3. Serializes to JSON via ``serde_json::to_string``
+
+    Raises:
+        ValueError: If the bytes cannot be decoded as a proto ``ChatRequest``
+            or if serialization to JSON fails.
+    """
+    ...
+
+def json_to_proto_chat_response(json_str: str) -> bytes:
+    """Serialize a JSON string to proto-encoded ``ChatResponse`` bytes.
+
+    Steps:
+    1. Deserializes JSON to native ``ChatResponse`` via ``serde_json::from_str``
+    2. Converts to proto via ``native_chat_response_to_proto``
+    3. Encodes to bytes via ``proto.encode_to_vec()``
+
+    The encoding uses dual-write: both the legacy ``content`` string field
+    (field 1) and the typed ``content_blocks`` field (field 7) are populated
+    for backwards compatibility.
+
+    Raises:
+        ValueError: If the JSON string cannot be deserialized as a
+            ``ChatResponse``.
     """
     ...
 
