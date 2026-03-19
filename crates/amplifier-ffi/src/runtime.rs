@@ -17,7 +17,7 @@ use crate::memory::set_last_error;
 
 /// Wraps a Tokio multi-thread runtime for FFI ownership transfer.
 pub struct FfiRuntime {
-    pub runtime: tokio::runtime::Runtime,
+    pub(crate) runtime: tokio::runtime::Runtime,
 }
 
 // ---------------------------------------------------------------------------
@@ -73,6 +73,7 @@ pub extern "C" fn amplifier_runtime_destroy(runtime: AmplifierHandle) -> Amplifi
 
     // Consume the Arc; when it drops, Tokio Runtime::drop shuts down the runtime.
     // SAFETY: handle was created by `amplifier_runtime_create` via `arc_to_handle::<FfiRuntime>`.
+    // Null was checked above; drop the Arc to shut down the runtime.
     let _ = unsafe { handle_to_arc_owned::<FfiRuntime>(runtime) };
 
     AMPLIFIER_OK
