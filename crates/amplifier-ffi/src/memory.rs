@@ -61,6 +61,12 @@ pub extern "C" fn amplifier_last_error() -> *const c_char {
 /// Free a `*mut c_char` that was allocated by any `amplifier_*` function.
 ///
 /// Null-safe: calling with a null pointer is a no-op.
+///
+/// # Safety
+///
+/// `ptr` must be either null or a pointer previously returned by an
+/// `amplifier_*` function (i.e., allocated via [`CString::into_raw`]).
+/// Passing any other pointer is undefined behavior.
 #[no_mangle]
 pub unsafe extern "C" fn amplifier_string_free(ptr: *mut c_char) {
     if ptr.is_null() {
