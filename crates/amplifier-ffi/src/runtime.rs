@@ -17,6 +17,8 @@ use crate::memory::set_last_error;
 
 /// Wraps a Tokio multi-thread runtime for FFI ownership transfer.
 pub struct FfiRuntime {
+    /// Holds the runtime alive; dropped (and shut down) when the Arc is consumed.
+    #[allow(dead_code)]
     pub(crate) runtime: tokio::runtime::Runtime,
 }
 
@@ -29,6 +31,8 @@ pub struct FfiRuntime {
 /// On success writes a non-null handle into `*out` and returns `AMPLIFIER_OK`.
 /// Returns `ERR_NULL_HANDLE` if `out` is null.
 /// Returns `ERR_RUNTIME` if the runtime cannot be created.
+// SAFETY: `out` is verified non-null before the write; no pointer dereference occurs on null.
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 #[no_mangle]
 pub extern "C" fn amplifier_runtime_create(out: *mut AmplifierHandle) -> AmplifierResult {
     if out.is_null() {
@@ -64,6 +68,8 @@ pub extern "C" fn amplifier_runtime_create(out: *mut AmplifierHandle) -> Amplifi
 ///
 /// Consumes the Arc, which drops the Tokio runtime and shuts it down.
 /// Returns `ERR_NULL_HANDLE` if `runtime` is null.
+// SAFETY: `runtime` is verified non-null before use; handle was created by `amplifier_runtime_create`.
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 #[no_mangle]
 pub extern "C" fn amplifier_runtime_destroy(runtime: AmplifierHandle) -> AmplifierResult {
     if runtime.is_null() {
