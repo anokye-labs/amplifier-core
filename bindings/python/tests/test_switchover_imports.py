@@ -10,7 +10,7 @@ Submodule thinning status:
 - coordinator.py → re-export stub (Rust-backed)
 - cancellation.py → re-export stub (Rust-backed)
 - session.py → still full Python (RustSession not yet drop-in)
-- hooks.py → still full Python (RustHookRegistry emit() not yet equivalent)
+- hooks.py → re-export stub (Rust-backed, thinned in v1.3.0)
 """
 
 
@@ -69,9 +69,9 @@ def test_submodule_coordinator_now_rust_backed():
     assert issubclass(SubCo, RustCoordinator)
 
 
-def test_submodule_hooks_still_python():
-    """Submodule import should still give Python type."""
+def test_submodule_hooks_now_rust_backed():
+    """Submodule hooks.py is now a re-export stub pointing to RustHookRegistry."""
     from amplifier_core.hooks import HookRegistry as PyHR
     from amplifier_core._engine import RustHookRegistry
 
-    assert PyHR is not RustHookRegistry
+    assert PyHR is RustHookRegistry
