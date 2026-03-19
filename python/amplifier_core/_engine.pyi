@@ -68,24 +68,9 @@ class RustHookRegistry:
     Drop-in replacement for ``amplifier_core.hooks.HookRegistry``.
     """
 
-    # Event constants
+    # Event constants — exactly the 8 #[classattr] entries from bindings/python/src/hooks.rs
     SESSION_START: str
     SESSION_END: str
-    SESSION_ERROR: str
-    SESSION_RESUME: str
-    SESSION_FORK: str
-    TURN_START: str
-    TURN_END: str
-    TURN_ERROR: str
-    PROVIDER_REQUEST: str
-    PROVIDER_RESPONSE: str
-    PROVIDER_ERROR: str
-    TOOL_CALL: str
-    TOOL_RESULT: str
-    TOOL_ERROR: str
-    CANCEL_REQUESTED: str
-    CANCEL_COMPLETED: str
-    # Legacy event constants (Python HookRegistry compat)
     PROMPT_SUBMIT: str
     TOOL_PRE: str
     TOOL_POST: str
