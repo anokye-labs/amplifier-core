@@ -145,6 +145,15 @@ class Tool(Protocol):
         """Human-readable tool description."""
         ...
 
+    @property
+    def input_schema(self) -> dict[str, Any]:
+        """JSON Schema describing the tool's input parameters.
+
+        Returns an empty dict by default for backward compatibility
+        with tools that predate this convention.
+        """
+        return {}
+
     async def execute(self, input: dict[str, Any]) -> ToolResult:
         """
         Execute tool with given input.
@@ -156,6 +165,13 @@ class Tool(Protocol):
             Tool execution result
         """
         ...
+
+
+# Override __protocol_attrs__ so that isinstance(obj, Tool) only checks the
+# core required members (name, description, execute).  input_schema has a
+# concrete default and is intentionally excluded from structural subtyping to
+# preserve backward compatibility with tools that predate this field.
+Tool.__protocol_attrs__ = frozenset({"name", "description", "execute"})  # type: ignore[attr-defined]
 
 
 @runtime_checkable

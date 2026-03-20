@@ -384,6 +384,27 @@ class ToolValidator:
                 )
             )
 
+        # Check input_schema property (optional — use getattr fallback for backward compat)
+        input_schema = getattr(tool, "input_schema", {})
+        if isinstance(input_schema, dict):
+            result.add(
+                ValidationCheck(
+                    name="tool_input_schema",
+                    passed=True,
+                    message=f"Tool.input_schema returns dict with {len(input_schema)} properties",
+                    severity="info",
+                )
+            )
+        else:
+            result.add(
+                ValidationCheck(
+                    name="tool_input_schema",
+                    passed=False,
+                    message=f"Tool.input_schema should return a dict, got {type(input_schema).__name__}",
+                    severity="warning",
+                )
+            )
+
         # Check execute method
         execute = getattr(tool, "execute", None)
         if execute is None:

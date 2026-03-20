@@ -51,6 +51,15 @@ class Tool(Protocol):
         """Human-readable tool description."""
         ...
 
+    @property
+    def input_schema(self) -> dict[str, Any]:
+        """JSON Schema describing the tool's input parameters.
+
+        Returns an empty dict by default for backward compatibility
+        with tools that predate this convention.
+        """
+        return {}
+
     async def execute(self, input: dict[str, Any]) -> ToolResult:
         """
         Execute tool with given input.
@@ -63,6 +72,11 @@ class Tool(Protocol):
         """
         ...
 ```
+
+> **Note:** `input_schema` has a concrete default (`return {}`) and is excluded from
+> `isinstance()` structural checks so that tools written before this field was introduced
+> continue to satisfy the protocol without modification.  Callers that need the schema
+> should always use `getattr(tool, "input_schema", {})` for maximum compatibility.
 
 ---
 
