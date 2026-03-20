@@ -429,6 +429,7 @@ fn merge_inject_context_results(results: &[HookResult]) -> HookResult {
         context_injection_role: first.context_injection_role.clone(),
         ephemeral: first.ephemeral,
         suppress_output: first.suppress_output,
+        append_to_last_tool_result: results.iter().any(|r| r.append_to_last_tool_result),
         ..Default::default()
     }
 }
@@ -1089,6 +1090,73 @@ mod tests {
         // Emit the registered event
         registry.emit("tool:pre", serde_json::json!({})).await;
         assert_eq!(counter.call_count(), 1);
+    }
+
+    // ---------------------------------------------------------------
+    // merge_inject_context_results -- append_to_last_tool_result
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn merge_inject_context_preserves_append_to_last_tool_result_both_true() {
+        let r1 = HookResult {
+            action: HookAction::InjectContext,
+            context_injection: Some("first".into()),
+            append_to_last_tool_result: true,
+            ..Default::default()
+        };
+        let r2 = HookResult {
+            action: HookAction::InjectContext,
+            context_injection: Some("second".into()),
+            append_to_last_tool_result: true,
+            ..Default::default()
+        };
+        let merged = merge_inject_context_results(&[r1, r2]);
+        assert!(
+            merged.append_to_last_tool_result,
+            "merged result must have append_to_last_tool_result=true when both inputs are true"
+        );
+    }
+
+    #[test]
+    fn merge_inject_context_preserves_append_to_last_tool_result_one_true() {
+        let r1 = HookResult {
+            action: HookAction::InjectContext,
+            context_injection: Some("first".into()),
+            append_to_last_tool_result: false,
+            ..Default::default()
+        };
+        let r2 = HookResult {
+            action: HookAction::InjectContext,
+            context_injection: Some("second".into()),
+            append_to_last_tool_result: true,
+            ..Default::default()
+        };
+        let merged = merge_inject_context_results(&[r1, r2]);
+        assert!(
+            merged.append_to_last_tool_result,
+            "merged result must have append_to_last_tool_result=true when at least one input is true (OR semantics)"
+        );
+    }
+
+    #[test]
+    fn merge_inject_context_preserves_append_to_last_tool_result_both_false() {
+        let r1 = HookResult {
+            action: HookAction::InjectContext,
+            context_injection: Some("first".into()),
+            append_to_last_tool_result: false,
+            ..Default::default()
+        };
+        let r2 = HookResult {
+            action: HookAction::InjectContext,
+            context_injection: Some("second".into()),
+            append_to_last_tool_result: false,
+            ..Default::default()
+        };
+        let merged = merge_inject_context_results(&[r1, r2]);
+        assert!(
+            !merged.append_to_last_tool_result,
+            "merged result must have append_to_last_tool_result=false when both inputs are false"
+        );
     }
 
     /// Verify that the `log` crate is available and usable from amplifier-core.
