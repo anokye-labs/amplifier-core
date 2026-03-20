@@ -603,6 +603,10 @@ class ModuleLoader:
         Returns:
             Path to the Python package directory, or None if not found
         """
+        # Guard: path must exist before we can search it
+        if not module_path.exists():
+            return None
+
         # If the path itself has __init__.py, it's already a package
         if (module_path / "__init__.py").exists():
             return module_path
