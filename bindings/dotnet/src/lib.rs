@@ -93,13 +93,13 @@ pub struct AmplifierHandle {
     config: serde_json::Value,
     event_handler: Option<OnEventCallback>,
     sequence: AtomicU64,
-    hooks_registered: AtomicBool,
 }
 
 /// Opaque handle representing a live session.
 pub struct SessionHandle {
     session: amplifier_core::Session,
     parent: *mut AmplifierHandle,
+    hooks_registered: AtomicBool,
 }
 
 // Safety: SessionHandle is only accessed through FFI functions that take
@@ -198,7 +198,6 @@ pub extern "C" fn amplifier_init(config_json: *const c_char) -> *mut AmplifierHa
         config: value,
         event_handler: None,
         sequence: AtomicU64::new(0),
-        hooks_registered: AtomicBool::new(false),
     });
 
     Box::into_raw(handle)
@@ -248,6 +247,7 @@ pub extern "C" fn amplifier_create_session(
     let session_handle = Box::new(SessionHandle {
         session,
         parent: handle,
+        hooks_registered: AtomicBool::new(false),
     });
 
     Box::into_raw(session_handle)
@@ -302,9 +302,7 @@ pub extern "C" fn amplifier_execute(
     // Register an FfiHookHandler on the session's hook registry so that
     // events emitted during orchestration are forwarded through the callback.
     // Guard prevents duplicate registration across multiple execute calls.
-    let already_registered = parent
-        .map(|p| p.hooks_registered.swap(true, Ordering::SeqCst))
-        .unwrap_or(true);
+    let already_registered = sh.hooks_registered.swap(true, Ordering::SeqCst);
 
     if let Some(cb) = event_cb {
         if !already_registered {
