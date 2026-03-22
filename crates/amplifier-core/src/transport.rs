@@ -247,6 +247,16 @@ mod tests {
         assert_eq!(Transport::from_str("unknown"), Transport::Python);
     }
 
+    #[test]
+    fn transport_rust_parsing() {
+        assert_eq!(Transport::from_str("rust"), Transport::Rust);
+    }
+
+    #[test]
+    fn transport_native_is_removed() {
+        assert_eq!(Transport::from_str("native"), Transport::Python);
+    }
+
     #[cfg(feature = "wasm")]
     fn fixture(name: &str) -> Vec<u8> {
         // CARGO_MANIFEST_DIR = …/crates/amplifier-core; fixtures live at workspace root.
