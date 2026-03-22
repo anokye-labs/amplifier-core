@@ -892,6 +892,12 @@ pub(crate) fn load_and_mount_wasm(
             dict.set_item("status", "loaded")?;
             dict.set_item("wrapper", wrapper)?;
         }
+        amplifier_core::module_resolver::LoadedModule::RustDelegated { crate_name } => {
+            // Signal to caller: this is a Rust crate module.
+            // The Python host should spawn it as a gRPC sidecar process.
+            dict.set_item("status", "delegate_to_rust")?;
+            dict.set_item("crate_name", crate_name)?;
+        }
     }
 
     Ok(dict.unbind())

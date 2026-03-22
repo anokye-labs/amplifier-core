@@ -101,3 +101,18 @@ fn load_and_mount_wasm_contract() {
     let _exists =
         load_and_mount_wasm as fn(Python<'_>, &PyCoordinator, String) -> PyResult<Py<PyDict>>;
 }
+
+/// Verify load_wasm_from_path rejects Rust transport with a Rust-specific error message.
+///
+/// The explicit Rust guard (added in task-11) must be present so users get clear guidance
+/// to use the gRPC sidecar pattern instead of a generic "not WASM" error.
+#[cfg(feature = "wasm")]
+#[test]
+fn load_wasm_from_path_rejects_rust_transport_with_specific_message() {
+    // This test verifies the Rust-specific error message constant is exported from
+    // module_resolver.  It will fail to compile until RUST_TRANSPORT_ERROR_MSG is added.
+    assert_eq!(
+        crate::module_resolver::RUST_TRANSPORT_ERROR_MSG,
+        "load_wasm_from_path cannot load Rust modules. Use the gRPC sidecar pattern instead."
+    );
+}

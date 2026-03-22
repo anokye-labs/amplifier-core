@@ -64,6 +64,12 @@ pub(crate) fn resolve_module(py: Python<'_>, path: String) -> PyResult<Py<PyDict
     Ok(dict.unbind())
 }
 
+/// Error message returned when a caller attempts to load a Rust module via
+/// `load_wasm_from_path`.  Rust modules must be spawned as gRPC sidecars.
+#[cfg(feature = "wasm")]
+pub(crate) const RUST_TRANSPORT_ERROR_MSG: &str =
+    "load_wasm_from_path cannot load Rust modules. Use the gRPC sidecar pattern instead.";
+
 /// Load a WASM module from a resolved manifest path.
 ///
 /// Returns a dict with "status" = "loaded" and "module_type" on success.
@@ -74,6 +80,10 @@ pub(crate) fn resolve_module(py: Python<'_>, path: String) -> PyResult<Py<PyDict
 pub(crate) fn load_wasm_from_path(py: Python<'_>, path: String) -> PyResult<Py<PyDict>> {
     let manifest = amplifier_core::module_resolver::resolve_module(std::path::Path::new(&path))
         .map_err(|e| PyErr::new::<PyRuntimeError, _>(format!("{e}")))?;
+
+    if manifest.transport == amplifier_core::transport::Transport::Rust {
+        return Err(PyErr::new::<PyValueError, _>(RUST_TRANSPORT_ERROR_MSG));
+    }
 
     if manifest.transport != amplifier_core::transport::Transport::Wasm {
         return Err(PyErr::new::<PyValueError, _>(format!(

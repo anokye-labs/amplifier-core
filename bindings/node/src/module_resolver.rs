@@ -121,6 +121,13 @@ pub fn load_wasm_from_path(path: String) -> Result<String> {
         ));
     }
 
+    if manifest.transport == amplifier_core::transport::Transport::Rust {
+        return Err(Error::from_reason(
+            "Rust module detected — spawn as gRPC sidecar. \
+             load_wasm_from_path only handles WASM modules.",
+        ));
+    }
+
     if manifest.transport != amplifier_core::transport::Transport::Wasm {
         return Err(Error::from_reason(format!(
             "load_wasm_from_path only handles WASM modules, got transport '{:?}'",
