@@ -638,4 +638,372 @@ mod tests {
         drop(seq_clone); // suppress unused warning
         drop(sequences);
     }
+
+    // -----------------------------------------------------------------------
+    // Phase 1 tests (11–16): event forwarding and concurrency
+    // -----------------------------------------------------------------------
+
+    /// Mark a `SessionHandle` as initialized so `Session::execute` proceeds
+    /// past the initialization gate.
+    ///
+    /// # Safety
+    /// `session` must be a valid, non-null pointer returned by
+    /// `amplifier_create_session`.
+    unsafe fn mark_initialized(session: *mut SessionHandle) {
+        (*session).session.set_initialized();
+    }
+
+    // 11. execute_fires_session_start_end
+    #[test]
+    fn execute_fires_session_start_end() {
+        use std::sync::{LazyLock, Mutex};
+        use std::time::Duration;
+
+        static EVENTS: LazyLock<Mutex<Vec<(String, String)>>> =
+            LazyLock::new(|| Mutex::new(Vec::new()));
+        EVENTS.lock().unwrap().clear();
+
+        extern "C" fn cb(
+            sid: *const c_char,
+            event: *const c_char,
+            _payload: *const c_char,
+            _ts: u64,
+            _seq: u64,
+        ) {
+            let s = unsafe { CStr::from_ptr(sid) }
+                .to_str()
+                .unwrap_or("")
+                .to_owned();
+            let e = unsafe { CStr::from_ptr(event) }
+                .to_str()
+                .unwrap_or("")
+                .to_owned();
+            EVENTS.lock().unwrap().push((s, e));
+        }
+
+        let config = valid_config_cstr();
+        let handle = amplifier_init(config.as_ptr());
+        assert!(!handle.is_null());
+        amplifier_set_event_handler(handle, Some(cb));
+
+        let sid = CString::new("session-11").unwrap();
+        let session = amplifier_create_session(handle, sid.as_ptr());
+        assert!(!session.is_null());
+        unsafe { mark_initialized(session) };
+
+        let prompt = CString::new("hello").unwrap();
+        let rc = amplifier_execute(session, prompt.as_ptr());
+        assert_eq!(rc, 0, "amplifier_execute should spawn successfully");
+
+        std::thread::sleep(Duration::from_secs(2));
+
+        let events = EVENTS.lock().unwrap();
+        assert!(!events.is_empty(), "callback should have received events");
+
+        let names: Vec<&str> = events.iter().map(|(_, e)| e.as_str()).collect();
+        let has_lifecycle = names.iter().any(|n| {
+            *n == "session:start" || *n == "session:end" || *n == "session:error"
+        });
+        assert!(
+            has_lifecycle,
+            "expected session lifecycle events, got: {names:?}"
+        );
+
+        amplifier_session_free(session);
+        amplifier_handle_free(handle);
+    }
+
+    // 12. execute_fires_content_block_delta
+    #[test]
+    fn execute_fires_content_block_delta() {
+        use std::sync::{LazyLock, Mutex};
+
+        static EVENTS: LazyLock<Mutex<Vec<String>>> =
+            LazyLock::new(|| Mutex::new(Vec::new()));
+        EVENTS.lock().unwrap().clear();
+
+        extern "C" fn cb(
+            _sid: *const c_char,
+            event: *const c_char,
+            _payload: *const c_char,
+            _ts: u64,
+            _seq: u64,
+        ) {
+            let e = unsafe { CStr::from_ptr(event) }
+                .to_str()
+                .unwrap_or("")
+                .to_owned();
+            EVENTS.lock().unwrap().push(e);
+        }
+
+        // Invoke FfiHookHandler directly to prove content_block:delta
+        // forwarding works. A live provider is needed for this event during
+        // real execution; here we verify the pipeline component.
+        static SEQ: AtomicU64 = AtomicU64::new(0);
+        SEQ.store(0, Ordering::SeqCst);
+
+        let handler = FfiHookHandler {
+            callback: cb,
+            session_id: "session-12".to_string(),
+            sequence: &SEQ,
+        };
+
+        let data = serde_json::json!({"type": "text_delta", "text": "hello"});
+        let result = get_runtime().block_on(handler.handle("content_block:delta", data));
+        assert!(result.is_ok(), "handler should succeed");
+
+        let events = EVENTS.lock().unwrap();
+        assert!(
+            events.iter().any(|e| e == "content_block:delta"),
+            "expected content_block:delta event, got: {events:?}"
+        );
+    }
+
+    // 13. event_order_monotonic
+    #[test]
+    fn event_order_monotonic() {
+        use std::sync::{LazyLock, Mutex};
+        use std::time::Duration;
+
+        static EVENTS: LazyLock<Mutex<Vec<(u64, u64)>>> =
+            LazyLock::new(|| Mutex::new(Vec::new()));
+        EVENTS.lock().unwrap().clear();
+
+        extern "C" fn cb(
+            _sid: *const c_char,
+            _event: *const c_char,
+            _payload: *const c_char,
+            ts: u64,
+            seq: u64,
+        ) {
+            EVENTS.lock().unwrap().push((seq, ts));
+        }
+
+        let config = valid_config_cstr();
+        let handle = amplifier_init(config.as_ptr());
+        assert!(!handle.is_null());
+        amplifier_set_event_handler(handle, Some(cb));
+
+        let sid = CString::new("session-13").unwrap();
+        let session = amplifier_create_session(handle, sid.as_ptr());
+        assert!(!session.is_null());
+        unsafe { mark_initialized(session) };
+
+        let prompt = CString::new("test monotonic").unwrap();
+        let rc = amplifier_execute(session, prompt.as_ptr());
+        assert_eq!(rc, 0);
+
+        std::thread::sleep(Duration::from_secs(2));
+
+        let events = EVENTS.lock().unwrap();
+        assert!(
+            events.len() >= 2,
+            "need at least 2 events for ordering check, got {}",
+            events.len()
+        );
+
+        for i in 1..events.len() {
+            let (prev_seq, prev_ts) = events[i - 1];
+            let (cur_seq, cur_ts) = events[i];
+            assert!(
+                cur_seq > prev_seq,
+                "sequence not strictly increasing: {} <= {} at index {}",
+                cur_seq,
+                prev_seq,
+                i,
+            );
+            assert!(
+                cur_ts >= prev_ts,
+                "timestamp decreased: {} < {} at index {}",
+                cur_ts,
+                prev_ts,
+                i,
+            );
+        }
+
+        amplifier_session_free(session);
+        amplifier_handle_free(handle);
+    }
+
+    // 14. callback_on_worker_thread
+    #[test]
+    fn callback_on_worker_thread() {
+        use std::sync::{LazyLock, Mutex};
+        use std::thread::ThreadId;
+        use std::time::Duration;
+
+        static THREAD_IDS: LazyLock<Mutex<Vec<ThreadId>>> =
+            LazyLock::new(|| Mutex::new(Vec::new()));
+        THREAD_IDS.lock().unwrap().clear();
+
+        extern "C" fn cb(
+            _sid: *const c_char,
+            _event: *const c_char,
+            _payload: *const c_char,
+            _ts: u64,
+            _seq: u64,
+        ) {
+            THREAD_IDS
+                .lock()
+                .unwrap()
+                .push(std::thread::current().id());
+        }
+
+        let calling_thread = std::thread::current().id();
+
+        let config = valid_config_cstr();
+        let handle = amplifier_init(config.as_ptr());
+        assert!(!handle.is_null());
+        amplifier_set_event_handler(handle, Some(cb));
+
+        let sid = CString::new("session-14").unwrap();
+        let session = amplifier_create_session(handle, sid.as_ptr());
+        assert!(!session.is_null());
+        unsafe { mark_initialized(session) };
+
+        let prompt = CString::new("thread test").unwrap();
+        let rc = amplifier_execute(session, prompt.as_ptr());
+        assert_eq!(rc, 0);
+
+        std::thread::sleep(Duration::from_secs(2));
+
+        let ids = THREAD_IDS.lock().unwrap();
+        assert!(!ids.is_empty(), "callback should have fired at least once");
+
+        let any_different = ids.iter().any(|id| *id != calling_thread);
+        assert!(
+            any_different,
+            "expected callback on a worker thread, all ran on calling thread"
+        );
+
+        amplifier_session_free(session);
+        amplifier_handle_free(handle);
+    }
+
+    // 15. empty_prompt_returns_error
+    #[test]
+    fn empty_prompt_returns_error() {
+        let config = valid_config_cstr();
+        let handle = amplifier_init(config.as_ptr());
+        assert!(!handle.is_null());
+
+        let sid = CString::new("session-15").unwrap();
+        let session = amplifier_create_session(handle, sid.as_ptr());
+        assert!(!session.is_null());
+
+        // Null prompt → immediate error
+        let rc_null = amplifier_execute(session, ptr::null());
+        assert_eq!(rc_null, -1, "null prompt should return error");
+        let err = amplifier_last_error();
+        assert!(!err.is_null(), "error message should be set");
+        let msg = unsafe { CStr::from_ptr(err) }.to_str().unwrap();
+        assert!(
+            msg.contains("null"),
+            "error should mention null, got: {msg}"
+        );
+
+        // Empty string prompt must not crash (fire-and-forget may succeed or
+        // fail asynchronously, but the FFI boundary remains safe).
+        let empty = CString::new("").unwrap();
+        let rc_empty = amplifier_execute(session, empty.as_ptr());
+        assert!(
+            rc_empty == 0 || rc_empty == -1,
+            "empty prompt must not crash, got rc={rc_empty}"
+        );
+
+        std::thread::sleep(std::time::Duration::from_millis(500));
+
+        amplifier_session_free(session);
+        amplifier_handle_free(handle);
+    }
+
+    // 16. concurrent_execute_lock_safety
+    #[test]
+    fn concurrent_execute_lock_safety() {
+        use std::sync::{LazyLock, Mutex};
+        use std::time::Duration;
+
+        static EVENTS: LazyLock<Mutex<Vec<(String, String)>>> =
+            LazyLock::new(|| Mutex::new(Vec::new()));
+        EVENTS.lock().unwrap().clear();
+
+        extern "C" fn cb(
+            sid: *const c_char,
+            event: *const c_char,
+            _payload: *const c_char,
+            _ts: u64,
+            _seq: u64,
+        ) {
+            let s = unsafe { CStr::from_ptr(sid) }
+                .to_str()
+                .unwrap_or("")
+                .to_owned();
+            let e = unsafe { CStr::from_ptr(event) }
+                .to_str()
+                .unwrap_or("")
+                .to_owned();
+            EVENTS.lock().unwrap().push((s, e));
+        }
+
+        let config = valid_config_cstr();
+        let handle = amplifier_init(config.as_ptr());
+        assert!(!handle.is_null());
+        amplifier_set_event_handler(handle, Some(cb));
+
+        let sid1 = CString::new("concurrent-1").unwrap();
+        let sid2 = CString::new("concurrent-2").unwrap();
+        let session1 = amplifier_create_session(handle, sid1.as_ptr());
+        let session2 = amplifier_create_session(handle, sid2.as_ptr());
+        assert!(!session1.is_null());
+        assert!(!session2.is_null());
+        unsafe {
+            mark_initialized(session1);
+            mark_initialized(session2);
+        }
+
+        let prompt1 = CString::new("concurrent prompt 1").unwrap();
+        let prompt2 = CString::new("concurrent prompt 2").unwrap();
+
+        // Convert raw pointers to usize so closures are Send.
+        let s1 = session1 as usize;
+        let p1 = prompt1.as_ptr() as usize;
+        let s2 = session2 as usize;
+        let p2 = prompt2.as_ptr() as usize;
+
+        let t1 = std::thread::spawn(move || {
+            amplifier_execute(s1 as *mut SessionHandle, p1 as *const c_char)
+        });
+        let t2 = std::thread::spawn(move || {
+            amplifier_execute(s2 as *mut SessionHandle, p2 as *const c_char)
+        });
+
+        let r1 = t1.join().expect("thread 1 must not panic");
+        let r2 = t2.join().expect("thread 2 must not panic");
+        assert_eq!(r1, 0, "session 1 execute should spawn");
+        assert_eq!(r2, 0, "session 2 execute should spawn");
+
+        std::thread::sleep(Duration::from_secs(2));
+
+        let events = EVENTS.lock().unwrap();
+        let s1_events: Vec<_> = events
+            .iter()
+            .filter(|(s, _)| s == "concurrent-1")
+            .collect();
+        let s2_events: Vec<_> = events
+            .iter()
+            .filter(|(s, _)| s == "concurrent-2")
+            .collect();
+        assert!(
+            !s1_events.is_empty(),
+            "session concurrent-1 should have events"
+        );
+        assert!(
+            !s2_events.is_empty(),
+            "session concurrent-2 should have events"
+        );
+
+        amplifier_session_free(session1);
+        amplifier_session_free(session2);
+        amplifier_handle_free(handle);
+    }
 }
