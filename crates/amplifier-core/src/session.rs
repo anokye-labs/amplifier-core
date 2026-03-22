@@ -141,6 +141,7 @@ pub struct Session {
     parent_id: Option<String>,
     coordinator: Arc<Coordinator>,
     initialized: AtomicBool,
+    cleaned_up: AtomicBool,
     status: SessionState,
     is_resumed: bool,
 }
@@ -172,6 +173,7 @@ impl Session {
             parent_id,
             coordinator,
             initialized: AtomicBool::new(false),
+            cleaned_up: AtomicBool::new(false),
             status: SessionState::Running,
             is_resumed: false,
         }
@@ -216,6 +218,11 @@ impl Session {
     /// Whether the session has been initialized.
     pub fn is_initialized(&self) -> bool {
         self.initialized.load(Ordering::Relaxed)
+    }
+
+    /// Whether cleanup has already been performed.
+    pub fn is_cleaned_up(&self) -> bool {
+        self.cleaned_up.load(Ordering::Relaxed)
     }
 
     /// Immutable reference to the coordinator.
@@ -368,6 +375,10 @@ impl Session {
     /// Emits `session:end` event and runs all cleanup functions registered
     /// on the coordinator.
     pub async fn cleanup(&self) {
+        if self.cleaned_up.swap(true, Ordering::SeqCst) {
+            return; // already cleaned up
+        }
+
         // Emit session:end event
         self.coordinator
             .hooks()
@@ -759,6 +770,34 @@ mod tests {
             !session.is_initialized(),
             "cleanup should clear initialized flag"
         );
+    }
+
+    #[tokio::test]
+    async fn cleanup_is_idempotent() {
+        let config = SessionConfig::minimal("loop-basic", "context-simple");
+        let session = Session::new(config, None, None);
+
+        let handler = Arc::new(FakeHookHandler::new());
+        let _ = session.coordinator().hooks().register(
+            events::SESSION_END,
+            handler.clone(),
+            0,
+            Some("test-handler".into()),
+        );
+
+        session.cleanup().await;
+        session.cleanup().await;
+
+        let events = handler.recorded_events();
+        let end_count = events
+            .iter()
+            .filter(|(name, _)| name == events::SESSION_END)
+            .count();
+        assert_eq!(
+            end_count, 1,
+            "session:end should be emitted exactly once, got {end_count}"
+        );
+        assert!(session.is_cleaned_up());
     }
 
     // ---------------------------------------------------------------
