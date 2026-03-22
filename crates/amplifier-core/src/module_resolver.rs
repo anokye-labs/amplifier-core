@@ -214,8 +214,7 @@ pub fn parse_amplifier_toml(
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| ModuleResolverError::TomlParseError {
                     path: module_path.to_path_buf(),
-                    reason: "Rust transport requires 'crate' field in [module] section"
-                        .to_string(),
+                    reason: "Rust transport requires 'crate' field in [module] section".to_string(),
                 })?;
             ModuleArtifact::RustCrate {
                 crate_name: crate_name.to_string(),

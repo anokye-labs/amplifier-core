@@ -7,7 +7,7 @@
 //! and return `ERR_INTERNAL` with TODO comments until kernel capability
 //! integration is complete.
 
-use std::ffi::{CStr, c_char};
+use std::ffi::{c_char, CStr};
 
 use crate::handles::{AmplifierHandle, AmplifierResult, ERR_INTERNAL, ERR_NULL_HANDLE};
 use crate::memory::set_last_error;
@@ -78,7 +78,9 @@ pub extern "C" fn amplifier_register_capability(
     // TODO: Obtain the FfiSession Arc via handle_to_arc_ref::<FfiSession>(session),
     //       lock session_arc.session, parse value_json as a serde_json::Value, and
     //       call session.register_capability(_name_str, parsed_value).
-    set_last_error("amplifier_register_capability: kernel capability integration not yet implemented");
+    set_last_error(
+        "amplifier_register_capability: kernel capability integration not yet implemented",
+    );
     ERR_INTERNAL
 }
 
@@ -181,16 +183,14 @@ mod tests {
         );
 
         // amplifier_register_capability: null value_json
-        let result =
-            amplifier_register_capability(fake_handle, name_cstr.as_ptr(), ptr::null());
+        let result = amplifier_register_capability(fake_handle, name_cstr.as_ptr(), ptr::null());
         assert_eq!(
             result, ERR_NULL_HANDLE,
             "register_capability: null value_json → ERR_NULL_HANDLE"
         );
 
         // amplifier_get_capability: null session
-        let result =
-            amplifier_get_capability(ptr::null_mut(), name_cstr.as_ptr(), &mut out_json);
+        let result = amplifier_get_capability(ptr::null_mut(), name_cstr.as_ptr(), &mut out_json);
         assert_eq!(
             result, ERR_NULL_HANDLE,
             "get_capability: null session → ERR_NULL_HANDLE"

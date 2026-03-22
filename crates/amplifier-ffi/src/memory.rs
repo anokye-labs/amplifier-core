@@ -5,7 +5,7 @@
 //! result code.
 
 use std::cell::RefCell;
-use std::ffi::{CString, c_char};
+use std::ffi::{c_char, CString};
 
 // ---------------------------------------------------------------------------
 // Thread-local last error storage

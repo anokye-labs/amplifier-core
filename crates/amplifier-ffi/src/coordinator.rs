@@ -8,7 +8,7 @@
 //! return `ERR_INTERNAL` with TODO comments until kernel Coordinator API
 //! integration is complete.
 
-use std::ffi::{CStr, c_char};
+use std::ffi::{c_char, CStr};
 
 use crate::handles::{AmplifierHandle, AmplifierResult, ERR_INTERNAL, ERR_NULL_HANDLE};
 use crate::memory::set_last_error;
@@ -237,48 +237,62 @@ mod tests {
         // null session
         let result =
             amplifier_session_mount_provider(ptr::null_mut(), fake_handle, name_cstr.as_ptr());
-        assert_eq!(result, ERR_NULL_HANDLE, "mount_provider: null session → ERR_NULL_HANDLE");
+        assert_eq!(
+            result, ERR_NULL_HANDLE,
+            "mount_provider: null session → ERR_NULL_HANDLE"
+        );
 
         // null provider
         let result =
             amplifier_session_mount_provider(fake_handle, ptr::null_mut(), name_cstr.as_ptr());
-        assert_eq!(result, ERR_NULL_HANDLE, "mount_provider: null provider → ERR_NULL_HANDLE");
+        assert_eq!(
+            result, ERR_NULL_HANDLE,
+            "mount_provider: null provider → ERR_NULL_HANDLE"
+        );
 
         // null name
         let result = amplifier_session_mount_provider(fake_handle, fake_handle, ptr::null());
-        assert_eq!(result, ERR_NULL_HANDLE, "mount_provider: null name → ERR_NULL_HANDLE");
+        assert_eq!(
+            result, ERR_NULL_HANDLE,
+            "mount_provider: null name → ERR_NULL_HANDLE"
+        );
 
         // ---- amplifier_session_mount_tool ----
 
         // null session
-        let result =
-            amplifier_session_mount_tool(ptr::null_mut(), fake_handle, name_cstr.as_ptr());
-        assert_eq!(result, ERR_NULL_HANDLE, "mount_tool: null session → ERR_NULL_HANDLE");
+        let result = amplifier_session_mount_tool(ptr::null_mut(), fake_handle, name_cstr.as_ptr());
+        assert_eq!(
+            result, ERR_NULL_HANDLE,
+            "mount_tool: null session → ERR_NULL_HANDLE"
+        );
 
         // null tool
-        let result =
-            amplifier_session_mount_tool(fake_handle, ptr::null_mut(), name_cstr.as_ptr());
-        assert_eq!(result, ERR_NULL_HANDLE, "mount_tool: null tool → ERR_NULL_HANDLE");
+        let result = amplifier_session_mount_tool(fake_handle, ptr::null_mut(), name_cstr.as_ptr());
+        assert_eq!(
+            result, ERR_NULL_HANDLE,
+            "mount_tool: null tool → ERR_NULL_HANDLE"
+        );
 
         // null name
         let result = amplifier_session_mount_tool(fake_handle, fake_handle, ptr::null());
-        assert_eq!(result, ERR_NULL_HANDLE, "mount_tool: null name → ERR_NULL_HANDLE");
+        assert_eq!(
+            result, ERR_NULL_HANDLE,
+            "mount_tool: null name → ERR_NULL_HANDLE"
+        );
 
         // ---- amplifier_session_set_orchestrator ----
 
         // null session
         let result = amplifier_session_set_orchestrator(ptr::null_mut(), fake_handle);
         assert_eq!(
-            result,
-            ERR_NULL_HANDLE,
+            result, ERR_NULL_HANDLE,
             "set_orchestrator: null session → ERR_NULL_HANDLE"
         );
 
         // null orchestrator
         let result = amplifier_session_set_orchestrator(fake_handle, ptr::null_mut());
         assert_eq!(
-            result,
-            ERR_NULL_HANDLE,
+            result, ERR_NULL_HANDLE,
             "set_orchestrator: null orchestrator → ERR_NULL_HANDLE"
         );
 
@@ -287,16 +301,14 @@ mod tests {
         // null session
         let result = amplifier_session_set_context(ptr::null_mut(), fake_handle);
         assert_eq!(
-            result,
-            ERR_NULL_HANDLE,
+            result, ERR_NULL_HANDLE,
             "set_context: null session → ERR_NULL_HANDLE"
         );
 
         // null context
         let result = amplifier_session_set_context(fake_handle, ptr::null_mut());
         assert_eq!(
-            result,
-            ERR_NULL_HANDLE,
+            result, ERR_NULL_HANDLE,
             "set_context: null context → ERR_NULL_HANDLE"
         );
     }
@@ -313,8 +325,7 @@ mod tests {
         // Both mount functions with valid UTF-8 name should return ERR_INTERNAL
         // (not ERR_NULL_HANDLE), meaning they passed the null check and UTF-8
         // validation before reaching the unimplemented body.
-        let result =
-            amplifier_session_mount_provider(fake_handle, fake_handle, name_cstr.as_ptr());
+        let result = amplifier_session_mount_provider(fake_handle, fake_handle, name_cstr.as_ptr());
         assert_eq!(
             result, ERR_INTERNAL,
             "mount_provider: valid args → ERR_INTERNAL (scaffold TODO)"

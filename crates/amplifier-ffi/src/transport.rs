@@ -9,7 +9,7 @@
 //! return `ERR_INTERNAL` with TODO comments until gRPC transport integration
 //! is complete.
 
-use std::ffi::{CStr, c_char};
+use std::ffi::{c_char, CStr};
 
 use crate::handles::{AmplifierHandle, AmplifierResult, ERR_INTERNAL, ERR_NULL_HANDLE};
 use crate::memory::set_last_error;
@@ -387,7 +387,10 @@ mod tests {
         // null runtime
         let result =
             amplifier_load_grpc_provider(ptr::null_mut(), endpoint_cstr.as_ptr(), &mut out);
-        assert_eq!(result, ERR_NULL_HANDLE, "load_grpc_provider: null runtime → ERR_NULL_HANDLE");
+        assert_eq!(
+            result, ERR_NULL_HANDLE,
+            "load_grpc_provider: null runtime → ERR_NULL_HANDLE"
+        );
 
         // null endpoint
         let result = amplifier_load_grpc_provider(fake_handle, ptr::null(), &mut out);
@@ -399,13 +402,19 @@ mod tests {
         // null out
         let result =
             amplifier_load_grpc_provider(fake_handle, endpoint_cstr.as_ptr(), ptr::null_mut());
-        assert_eq!(result, ERR_NULL_HANDLE, "load_grpc_provider: null out → ERR_NULL_HANDLE");
+        assert_eq!(
+            result, ERR_NULL_HANDLE,
+            "load_grpc_provider: null out → ERR_NULL_HANDLE"
+        );
 
         // ---- amplifier_load_grpc_tool ----
 
         // null runtime
         let result = amplifier_load_grpc_tool(ptr::null_mut(), endpoint_cstr.as_ptr(), &mut out);
-        assert_eq!(result, ERR_NULL_HANDLE, "load_grpc_tool: null runtime → ERR_NULL_HANDLE");
+        assert_eq!(
+            result, ERR_NULL_HANDLE,
+            "load_grpc_tool: null runtime → ERR_NULL_HANDLE"
+        );
 
         // null endpoint
         let result = amplifier_load_grpc_tool(fake_handle, ptr::null(), &mut out);
@@ -415,9 +424,11 @@ mod tests {
         );
 
         // null out
-        let result =
-            amplifier_load_grpc_tool(fake_handle, endpoint_cstr.as_ptr(), ptr::null_mut());
-        assert_eq!(result, ERR_NULL_HANDLE, "load_grpc_tool: null out → ERR_NULL_HANDLE");
+        let result = amplifier_load_grpc_tool(fake_handle, endpoint_cstr.as_ptr(), ptr::null_mut());
+        assert_eq!(
+            result, ERR_NULL_HANDLE,
+            "load_grpc_tool: null out → ERR_NULL_HANDLE"
+        );
 
         // ---- amplifier_load_grpc_orchestrator ----
 
@@ -473,7 +484,10 @@ mod tests {
 
         // null runtime
         let result = amplifier_load_grpc_hook(ptr::null_mut(), endpoint_cstr.as_ptr(), &mut out);
-        assert_eq!(result, ERR_NULL_HANDLE, "load_grpc_hook: null runtime → ERR_NULL_HANDLE");
+        assert_eq!(
+            result, ERR_NULL_HANDLE,
+            "load_grpc_hook: null runtime → ERR_NULL_HANDLE"
+        );
 
         // null endpoint
         let result = amplifier_load_grpc_hook(fake_handle, ptr::null(), &mut out);
@@ -483,16 +497,20 @@ mod tests {
         );
 
         // null out
-        let result =
-            amplifier_load_grpc_hook(fake_handle, endpoint_cstr.as_ptr(), ptr::null_mut());
-        assert_eq!(result, ERR_NULL_HANDLE, "load_grpc_hook: null out → ERR_NULL_HANDLE");
+        let result = amplifier_load_grpc_hook(fake_handle, endpoint_cstr.as_ptr(), ptr::null_mut());
+        assert_eq!(
+            result, ERR_NULL_HANDLE,
+            "load_grpc_hook: null out → ERR_NULL_HANDLE"
+        );
 
         // ---- amplifier_load_grpc_context ----
 
         // null runtime
-        let result =
-            amplifier_load_grpc_context(ptr::null_mut(), endpoint_cstr.as_ptr(), &mut out);
-        assert_eq!(result, ERR_NULL_HANDLE, "load_grpc_context: null runtime → ERR_NULL_HANDLE");
+        let result = amplifier_load_grpc_context(ptr::null_mut(), endpoint_cstr.as_ptr(), &mut out);
+        assert_eq!(
+            result, ERR_NULL_HANDLE,
+            "load_grpc_context: null runtime → ERR_NULL_HANDLE"
+        );
 
         // null endpoint
         let result = amplifier_load_grpc_context(fake_handle, ptr::null(), &mut out);
@@ -504,14 +522,20 @@ mod tests {
         // null out
         let result =
             amplifier_load_grpc_context(fake_handle, endpoint_cstr.as_ptr(), ptr::null_mut());
-        assert_eq!(result, ERR_NULL_HANDLE, "load_grpc_context: null out → ERR_NULL_HANDLE");
+        assert_eq!(
+            result, ERR_NULL_HANDLE,
+            "load_grpc_context: null out → ERR_NULL_HANDLE"
+        );
 
         // ---- amplifier_load_grpc_approval ----
 
         // null runtime
         let result =
             amplifier_load_grpc_approval(ptr::null_mut(), endpoint_cstr.as_ptr(), &mut out);
-        assert_eq!(result, ERR_NULL_HANDLE, "load_grpc_approval: null runtime → ERR_NULL_HANDLE");
+        assert_eq!(
+            result, ERR_NULL_HANDLE,
+            "load_grpc_approval: null runtime → ERR_NULL_HANDLE"
+        );
 
         // null endpoint
         let result = amplifier_load_grpc_approval(fake_handle, ptr::null(), &mut out);
@@ -523,7 +547,10 @@ mod tests {
         // null out
         let result =
             amplifier_load_grpc_approval(fake_handle, endpoint_cstr.as_ptr(), ptr::null_mut());
-        assert_eq!(result, ERR_NULL_HANDLE, "load_grpc_approval: null out → ERR_NULL_HANDLE");
+        assert_eq!(
+            result, ERR_NULL_HANDLE,
+            "load_grpc_approval: null out → ERR_NULL_HANDLE"
+        );
     }
 
     /// Valid UTF-8 endpoints pass argument validation and reach the unimplemented body,
@@ -537,25 +564,45 @@ mod tests {
         let session_id_cstr = CString::new("test-session-id").unwrap();
         let mut out: AmplifierHandle = ptr::null_mut();
 
-        let result =
-            amplifier_load_grpc_provider(fake_handle, endpoint_cstr.as_ptr(), &mut out);
-        assert_eq!(result, ERR_INTERNAL, "load_grpc_provider: valid args → ERR_INTERNAL (scaffold TODO)");
+        let result = amplifier_load_grpc_provider(fake_handle, endpoint_cstr.as_ptr(), &mut out);
+        assert_eq!(
+            result, ERR_INTERNAL,
+            "load_grpc_provider: valid args → ERR_INTERNAL (scaffold TODO)"
+        );
 
         let result = amplifier_load_grpc_tool(fake_handle, endpoint_cstr.as_ptr(), &mut out);
-        assert_eq!(result, ERR_INTERNAL, "load_grpc_tool: valid args → ERR_INTERNAL (scaffold TODO)");
+        assert_eq!(
+            result, ERR_INTERNAL,
+            "load_grpc_tool: valid args → ERR_INTERNAL (scaffold TODO)"
+        );
 
         let result = amplifier_load_grpc_orchestrator(
-            fake_handle, endpoint_cstr.as_ptr(), session_id_cstr.as_ptr(), &mut out,
+            fake_handle,
+            endpoint_cstr.as_ptr(),
+            session_id_cstr.as_ptr(),
+            &mut out,
         );
-        assert_eq!(result, ERR_INTERNAL, "load_grpc_orchestrator: valid args → ERR_INTERNAL (scaffold TODO)");
+        assert_eq!(
+            result, ERR_INTERNAL,
+            "load_grpc_orchestrator: valid args → ERR_INTERNAL (scaffold TODO)"
+        );
 
         let result = amplifier_load_grpc_hook(fake_handle, endpoint_cstr.as_ptr(), &mut out);
-        assert_eq!(result, ERR_INTERNAL, "load_grpc_hook: valid args → ERR_INTERNAL (scaffold TODO)");
+        assert_eq!(
+            result, ERR_INTERNAL,
+            "load_grpc_hook: valid args → ERR_INTERNAL (scaffold TODO)"
+        );
 
         let result = amplifier_load_grpc_context(fake_handle, endpoint_cstr.as_ptr(), &mut out);
-        assert_eq!(result, ERR_INTERNAL, "load_grpc_context: valid args → ERR_INTERNAL (scaffold TODO)");
+        assert_eq!(
+            result, ERR_INTERNAL,
+            "load_grpc_context: valid args → ERR_INTERNAL (scaffold TODO)"
+        );
 
         let result = amplifier_load_grpc_approval(fake_handle, endpoint_cstr.as_ptr(), &mut out);
-        assert_eq!(result, ERR_INTERNAL, "load_grpc_approval: valid args → ERR_INTERNAL (scaffold TODO)");
+        assert_eq!(
+            result, ERR_INTERNAL,
+            "load_grpc_approval: valid args → ERR_INTERNAL (scaffold TODO)"
+        );
     }
 }

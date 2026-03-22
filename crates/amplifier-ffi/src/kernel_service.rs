@@ -58,7 +58,9 @@ pub extern "C" fn amplifier_kernel_service_start(
     // TODO: Obtain the FfiSession Arc via handle_to_arc_ref::<FfiSession>(session),
     //       lock session_arc.session, start a gRPC listener on `port`, and write
     //       the resulting service token Arc handle into *out_token.
-    set_last_error("amplifier_kernel_service_start: kernel service integration not yet implemented");
+    set_last_error(
+        "amplifier_kernel_service_start: kernel service integration not yet implemented",
+    );
     ERR_INTERNAL
 }
 

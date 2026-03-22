@@ -5,14 +5,14 @@
 //! `amplifier_session_destroy` for managing session lifecycle across the FFI
 //! boundary.
 
-use std::ffi::{CStr, c_char};
+use std::ffi::{c_char, CStr};
 use std::sync::{Arc, Mutex};
 
 use amplifier_core::session::{Session, SessionConfig};
 
 use crate::handles::{
-    AmplifierHandle, AmplifierResult, AMPLIFIER_OK, ERR_INVALID_JSON, ERR_NULL_HANDLE, ERR_SESSION,
-    arc_to_handle, handle_to_arc_owned, handle_to_arc_ref,
+    arc_to_handle, handle_to_arc_owned, handle_to_arc_ref, AmplifierHandle, AmplifierResult,
+    AMPLIFIER_OK, ERR_INVALID_JSON, ERR_NULL_HANDLE, ERR_SESSION,
 };
 use crate::memory::{set_last_error, string_to_c};
 use crate::runtime::FfiRuntime;
@@ -371,7 +371,10 @@ mod tests {
 
         // amplifier_session_create: null config_json
         let result = amplifier_session_create(runtime_handle, ptr::null(), &mut out);
-        assert_eq!(result, ERR_NULL_HANDLE, "null config_json → ERR_NULL_HANDLE");
+        assert_eq!(
+            result, ERR_NULL_HANDLE,
+            "null config_json → ERR_NULL_HANDLE"
+        );
 
         // amplifier_session_create: null out
         let result =
@@ -392,12 +395,12 @@ mod tests {
         assert_eq!(result, ERR_NULL_HANDLE, "null session → ERR_NULL_HANDLE");
 
         // amplifier_session_execute: null prompt (real session handle passes first check)
-        let result =
-            amplifier_session_execute(session_handle, ptr::null(), &mut out_json);
+        let result = amplifier_session_execute(session_handle, ptr::null(), &mut out_json);
         assert_eq!(result, ERR_NULL_HANDLE, "null prompt → ERR_NULL_HANDLE");
 
         // amplifier_session_execute: null out_json (real session and prompt pass first two checks)
-        let result = amplifier_session_execute(session_handle, prompt_cstr.as_ptr(), ptr::null_mut());
+        let result =
+            amplifier_session_execute(session_handle, prompt_cstr.as_ptr(), ptr::null_mut());
         assert_eq!(result, ERR_NULL_HANDLE, "null out_json → ERR_NULL_HANDLE");
 
         // amplifier_session_cleanup: null handle

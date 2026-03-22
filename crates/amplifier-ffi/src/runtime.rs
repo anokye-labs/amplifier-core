@@ -6,8 +6,8 @@
 use std::sync::Arc;
 
 use crate::handles::{
-    AmplifierHandle, AmplifierResult, AMPLIFIER_OK, ERR_NULL_HANDLE, ERR_RUNTIME,
-    arc_to_handle, handle_to_arc_owned,
+    arc_to_handle, handle_to_arc_owned, AmplifierHandle, AmplifierResult, AMPLIFIER_OK,
+    ERR_NULL_HANDLE, ERR_RUNTIME,
 };
 use crate::memory::set_last_error;
 

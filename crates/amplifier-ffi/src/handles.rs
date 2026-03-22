@@ -126,7 +126,7 @@ mod tests {
         let cloned = unsafe { handle_to_arc_ref::<u32>(handle) };
         assert!(cloned.is_some());
         assert_eq!(Arc::strong_count(&arc), strong_before + 2); // original handle + clone
-        // Cleanup
+                                                                // Cleanup
         drop(cloned);
         unsafe { handle_to_arc_owned::<u32>(handle) };
     }
