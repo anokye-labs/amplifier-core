@@ -771,6 +771,7 @@ class ModuleLoader:
         ) -> Callable | None:
             """Spawn the Rust sidecar, await READY:<port>, then connect via gRPC."""
             import asyncio
+            import select
 
             from .loader_grpc import load_grpc_module as _load_grpc
 
@@ -781,7 +782,7 @@ class ModuleLoader:
             )
 
             ready_line: str | None = None
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             deadline = loop.time() + 10.0
 
             while loop.time() < deadline:
@@ -793,8 +794,8 @@ class ModuleLoader:
                     )
 
                 # Non-blocking line read via select.
-                import select
-
+                # Note: select.select() works with subprocess pipes on POSIX only.
+                # Windows support would require a different non-blocking read strategy.
                 assert proc.stdout is not None
                 readable, _, _ = select.select([proc.stdout], [], [], 0.05)
                 if readable:
