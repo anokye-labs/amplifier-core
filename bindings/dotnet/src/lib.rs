@@ -22,7 +22,7 @@ use std::ffi::{c_char, c_int, CStr, CString};
 use std::future::Future;
 use std::pin::Pin;
 use std::ptr;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
 
 use tokio::runtime::Runtime;
@@ -93,6 +93,7 @@ pub struct AmplifierHandle {
     config: serde_json::Value,
     event_handler: Option<OnEventCallback>,
     sequence: AtomicU64,
+    hooks_registered: AtomicBool,
 }
 
 /// Opaque handle representing a live session.
@@ -197,6 +198,7 @@ pub extern "C" fn amplifier_init(config_json: *const c_char) -> *mut AmplifierHa
         config: value,
         event_handler: None,
         sequence: AtomicU64::new(0),
+        hooks_registered: AtomicBool::new(false),
     });
 
     Box::into_raw(handle)
@@ -299,20 +301,27 @@ pub extern "C" fn amplifier_execute(
 
     // Register an FfiHookHandler on the session's hook registry so that
     // events emitted during orchestration are forwarded through the callback.
+    // Guard prevents duplicate registration across multiple execute calls.
+    let already_registered = parent
+        .map(|p| p.hooks_registered.swap(true, Ordering::SeqCst))
+        .unwrap_or(true);
+
     if let Some(cb) = event_cb {
-        // Safety: parent handle outlives the spawned task (FFI contract),
-        // so seq_ptr is valid for the duration of execution.
-        let seq = seq_ptr.expect("event_cb is Some only when parent is Some");
+        if !already_registered {
+            // Safety: parent handle outlives the spawned task (FFI contract),
+            // so seq_ptr is valid for the duration of execution.
+            let seq = seq_ptr.expect("event_cb is Some only when parent is Some");
 
-        let handler = Arc::new(FfiHookHandler {
-            callback: cb,
-            session_id: session_id_owned.clone(),
-            sequence: seq,
-        });
+            let handler = Arc::new(FfiHookHandler {
+                callback: cb,
+                session_id: session_id_owned.clone(),
+                sequence: seq,
+            });
 
-        let hooks = sh.session.coordinator().hooks();
-        for event_name in amplifier_core::events::ALL_EVENTS {
-            let _ = hooks.register(event_name, handler.clone(), 0, Some("ffi-event-forwarder".to_string()));
+            let hooks = sh.session.coordinator().hooks();
+            for event_name in amplifier_core::events::ALL_EVENTS {
+                let _ = hooks.register(event_name, handler.clone(), 0, Some("ffi-event-forwarder".to_string()));
+            }
         }
     }
 
@@ -326,16 +335,17 @@ pub extern "C" fn amplifier_execute(
 
         match sh.session.execute(&prompt_str).await {
             Ok(_result) => {
-                if let (Some(cb), Some(seq)) = (event_cb, seq_ptr) {
-                    emit_event(cb, seq, &session_id_owned, "session:end", "{}");
-                }
+                // cleanup() emits session:end and runs coordinator cleanup
+                sh.session.cleanup().await;
             }
             Err(e) => {
+                // Emit session:error before cleanup for error visibility
                 if let (Some(cb), Some(seq)) = (event_cb, seq_ptr) {
                     let payload = serde_json::json!({ "error": e.to_string() }).to_string();
                     emit_event(cb, seq, &session_id_owned, "session:error", &payload);
                 }
                 log::error!("amplifier_execute failed: {e}");
+                sh.session.cleanup().await;
             }
         }
     });
@@ -641,7 +651,10 @@ mod tests {
 
     // -----------------------------------------------------------------------
     // Phase 1 tests (11–16): event forwarding and concurrency
+    // These use shared static state (LazyLock<Mutex<Vec<...>>>), so they
+    // must run serially to avoid interference.
     // -----------------------------------------------------------------------
+    use serial_test::serial;
 
     /// Mark a `SessionHandle` as initialized so `Session::execute` proceeds
     /// past the initialization gate.
@@ -655,6 +668,7 @@ mod tests {
 
     // 11. execute_fires_session_start_end
     #[test]
+    #[serial]
     fn execute_fires_session_start_end() {
         use std::sync::{LazyLock, Mutex};
         use std::time::Duration;
@@ -715,6 +729,7 @@ mod tests {
 
     // 12. execute_fires_content_block_delta
     #[test]
+    #[serial]
     fn execute_fires_content_block_delta() {
         use std::sync::{LazyLock, Mutex};
 
@@ -761,6 +776,7 @@ mod tests {
 
     // 13. event_order_monotonic
     #[test]
+    #[serial]
     fn event_order_monotonic() {
         use std::sync::{LazyLock, Mutex};
         use std::time::Duration;
@@ -827,6 +843,7 @@ mod tests {
 
     // 14. callback_on_worker_thread
     #[test]
+    #[serial]
     fn callback_on_worker_thread() {
         use std::sync::{LazyLock, Mutex};
         use std::thread::ThreadId;
@@ -882,6 +899,7 @@ mod tests {
 
     // 15. empty_prompt_returns_error
     #[test]
+    #[serial]
     fn empty_prompt_returns_error() {
         let config = valid_config_cstr();
         let handle = amplifier_init(config.as_ptr());
@@ -919,6 +937,7 @@ mod tests {
 
     // 16. concurrent_execute_lock_safety
     #[test]
+    #[serial]
     fn concurrent_execute_lock_safety() {
         use std::sync::{LazyLock, Mutex};
         use std::time::Duration;
