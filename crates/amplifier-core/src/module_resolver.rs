@@ -462,6 +462,10 @@ pub enum ModuleResolverError {
 ///         // Signal to Python host: import this package
 ///         println!("Python host should import: {package_name}");
 ///     }
+///     LoadedModule::RustDelegated { crate_name } => {
+///         // Signal to host: spawn binary for this crate as a gRPC sidecar
+///         println!("Host should spawn binary for crate: {crate_name}");
+///     }
 ///     _ => { /* handle other variants */ }
 /// }
 ///
@@ -485,6 +489,11 @@ pub enum LoadedModule {
         /// The Python package name to import.
         package_name: String,
     },
+    /// Rust module — the host should spawn this as a gRPC sidecar process.
+    RustDelegated {
+        /// The Rust crate name to spawn as a sidecar.
+        crate_name: String,
+    },
 }
 
 impl LoadedModule {
@@ -498,6 +507,7 @@ impl LoadedModule {
             LoadedModule::Provider(_) => "Provider",
             LoadedModule::Orchestrator(_) => "Orchestrator",
             LoadedModule::PythonDelegated { .. } => "PythonDelegated",
+            LoadedModule::RustDelegated { .. } => "RustDelegated",
         }
     }
 }
@@ -541,6 +551,9 @@ fn verify_wasm_integrity(
 /// [`LoadedModule::PythonDelegated`] as a signal to the Python host to handle loading
 /// itself via importlib.
 ///
+/// For `Transport::Rust`, returns [`LoadedModule::RustDelegated`] as a signal to the
+/// host that it should spawn the crate binary as a gRPC sidecar process.
+///
 /// For `Transport::Grpc`, returns an error — gRPC loading is async and must be done
 /// directly with [`crate::transport::load_grpc_tool`] or
 /// [`crate::transport::load_grpc_orchestrator`].
@@ -574,10 +587,19 @@ pub fn load_module(
             Ok(LoadedModule::PythonDelegated { package_name })
         }
 
-        Transport::Rust => Err(Box::new(ModuleResolverError::TomlParseError {
-            path: std::path::PathBuf::new(),
-            reason: "Rust transport is not yet implemented".to_string(),
-        })),
+        Transport::Rust => {
+            let crate_name = match &manifest.artifact {
+                ModuleArtifact::RustCrate { crate_name } => crate_name.clone(),
+                other => {
+                    return Err(format!(
+                        "expected RustCrate artifact for Rust transport, got {:?}",
+                        other
+                    )
+                    .into())
+                }
+            };
+            Ok(LoadedModule::RustDelegated { crate_name })
+        }
 
         Transport::Wasm => {
             // Resolve bytes: read from disk for WasmPath, use existing bytes for WasmBytes.
