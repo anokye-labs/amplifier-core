@@ -1588,4 +1588,33 @@ endpoint = "http://localhost:50051"
         };
         assert_eq!(loaded_py.variant_name(), "PythonDelegated");
     }
+
+    /// load_module() with a RustCrate artifact returns LoadedModule::RustDelegated.
+    ///
+    /// This test is the RED step for the Rust transport delegation feature.
+    /// It will fail with a compile error until LoadedModule::RustDelegated is added
+    /// and load_module() is updated to return it for Transport::Rust.
+    #[cfg(feature = "wasm")]
+    #[test]
+    fn load_module_rust_crate_returns_rust_delegated() {
+        let manifest = ModuleManifest {
+            transport: Transport::Rust,
+            module_type: ModuleType::Provider,
+            artifact: ModuleArtifact::RustCrate {
+                crate_name: "amplifier_module_provider_unified".to_string(),
+            },
+            sha256: None,
+        };
+        let engine = make_engine();
+        let result = load_module(&manifest, engine, None);
+        assert!(result.is_ok(), "load_module should succeed for RustCrate");
+        let loaded = result.unwrap();
+        assert_eq!(loaded.variant_name(), "RustDelegated");
+        match loaded {
+            LoadedModule::RustDelegated { crate_name } => {
+                assert_eq!(crate_name, "amplifier_module_provider_unified");
+            }
+            other => panic!("expected RustDelegated, got {:?}", other.variant_name()),
+        }
+    }
 }
