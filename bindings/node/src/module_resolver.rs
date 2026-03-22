@@ -10,7 +10,7 @@ pub struct JsModuleManifest {
     /// How the module is loaded and invoked.
     ///
     /// Valid values (string literal union):
-    /// `"python"` | `"wasm"` | `"grpc"` | `"native"`
+    /// `"python"` | `"wasm"` | `"grpc"` | `"rust"`
     pub transport: String,
 
     /// Logical role the module plays inside the kernel.
@@ -22,7 +22,7 @@ pub struct JsModuleManifest {
     /// Artifact format used to locate or load the module.
     ///
     /// Valid values (string literal union):
-    /// `"wasm"` | `"grpc"` | `"python"`
+    /// `"wasm"` | `"grpc"` | `"python"` | `"rust"`
     ///
     /// - `"wasm"` — `artifactPath` contains the `.wasm` component file path
     /// - `"grpc"` — `endpoint` contains the gRPC service URL
@@ -51,7 +51,7 @@ pub fn resolve_module(path: String) -> Result<JsModuleManifest> {
         amplifier_core::transport::Transport::Python => "python",
         amplifier_core::transport::Transport::Wasm => "wasm",
         amplifier_core::transport::Transport::Grpc => "grpc",
-        amplifier_core::transport::Transport::Native => "native",
+        amplifier_core::transport::Transport::Rust => "rust",
     };
 
     let module_type = match manifest.module_type {

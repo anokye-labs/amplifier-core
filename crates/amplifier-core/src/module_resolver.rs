@@ -201,12 +201,18 @@ pub fn parse_amplifier_toml(
 
             ModuleArtifact::WasmPath(wasm_path)
         }
-        Transport::Python | Transport::Native => {
+        Transport::Python => {
             let dir_name = module_path
                 .file_name()
                 .map(|n| n.to_string_lossy().to_string())
                 .unwrap_or_else(|| "unknown".to_string());
             ModuleArtifact::PythonModule(dir_name)
+        }
+        Transport::Rust => {
+            return Err(ModuleResolverError::TomlParseError {
+                path: module_path.to_path_buf(),
+                reason: "Rust transport is not yet implemented".to_string(),
+            });
         }
     };
 
@@ -522,7 +528,7 @@ fn verify_wasm_integrity(
 /// For `Transport::Wasm`, reads bytes from the manifest artifact, then dispatches to
 /// the appropriate `load_wasm_*` function based on `module_type`.
 ///
-/// For `Transport::Python` or `Transport::Native`, returns
+/// For `Transport::Python`, returns
 /// [`LoadedModule::PythonDelegated`] as a signal to the Python host to handle loading
 /// itself via importlib.
 ///
@@ -545,12 +551,12 @@ pub fn load_module(
     }
 
     match &manifest.transport {
-        Transport::Python | Transport::Native => {
+        Transport::Python => {
             let package_name = match &manifest.artifact {
                 ModuleArtifact::PythonModule(name) => name.clone(),
                 other => {
                     return Err(format!(
-                        "expected PythonModule artifact for Python/Native transport, got {:?}",
+                        "expected PythonModule artifact for Python transport, got {:?}",
                         other
                     )
                     .into())
@@ -558,6 +564,11 @@ pub fn load_module(
             };
             Ok(LoadedModule::PythonDelegated { package_name })
         }
+
+        Transport::Rust => Err(Box::new(ModuleResolverError::TomlParseError {
+            path: std::path::PathBuf::new(),
+            reason: "Rust transport is not yet implemented".to_string(),
+        })),
 
         Transport::Wasm => {
             // Resolve bytes: read from disk for WasmPath, use existing bytes for WasmBytes.

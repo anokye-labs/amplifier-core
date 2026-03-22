@@ -9,7 +9,7 @@ use crate::traits::{ApprovalProvider, ContextManager, HookHandler, Orchestrator,
 pub enum Transport {
     Python,
     Grpc,
-    Native,
+    Rust,
     Wasm,
 }
 
@@ -19,7 +19,7 @@ impl Transport {
     pub fn from_str(s: &str) -> Self {
         match s {
             "grpc" => Transport::Grpc,
-            "native" => Transport::Native,
+            "rust" => Transport::Rust,
             "wasm" => Transport::Wasm,
             _ => Transport::Python,
         }
@@ -242,7 +242,7 @@ mod tests {
     fn transport_parsing() {
         assert_eq!(Transport::from_str("python"), Transport::Python);
         assert_eq!(Transport::from_str("grpc"), Transport::Grpc);
-        assert_eq!(Transport::from_str("native"), Transport::Native);
+        assert_eq!(Transport::from_str("rust"), Transport::Rust);
         assert_eq!(Transport::from_str("wasm"), Transport::Wasm);
         assert_eq!(Transport::from_str("unknown"), Transport::Python);
     }

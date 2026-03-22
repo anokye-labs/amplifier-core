@@ -23,7 +23,7 @@ pub(crate) fn resolve_module(py: Python<'_>, path: String) -> PyResult<Py<PyDict
         amplifier_core::transport::Transport::Python => "python",
         amplifier_core::transport::Transport::Wasm => "wasm",
         amplifier_core::transport::Transport::Grpc => "grpc",
-        amplifier_core::transport::Transport::Native => "native",
+        amplifier_core::transport::Transport::Rust => "rust",
     };
     dict.set_item("transport", transport_str)?;
 
