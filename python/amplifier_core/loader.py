@@ -277,11 +277,20 @@ class ModuleLoader:
                                 module_path, module_id, config, coordinator
                             )
 
+                        if transport == "rust":
+                            return self._make_rust_sidecar_mount(
+                                module_path, module_id, manifest, coordinator
+                            )
+
                         # transport == "python" or unknown → fall through
                     except ImportError:
                         logger.debug(
                             "Rust engine not available, falling through to Python loader"
                         )
+                    except FileNotFoundError:
+                        # Rust sidecar binary not found — propagate so caller sees the
+                        # descriptive error rather than falling through to Python validation.
+                        raise
                     except Exception as engine_err:
                         logger.warning(
                             f"resolve_module failed for '{module_id}': {engine_err}, "
@@ -699,6 +708,137 @@ class ModuleLoader:
                 meta = tomli.load(f)
 
         return await load_grpc_module(module_id, config, meta, coordinator)
+
+    def _make_rust_sidecar_mount(
+        self,
+        module_path: Path,
+        module_id: str,
+        manifest: dict[str, Any],
+        coordinator: ModuleCoordinator,
+    ) -> Callable[[ModuleCoordinator], Awaitable[Callable | None]]:
+        """Return a mount function that spawns a Rust sidecar binary and connects via gRPC.
+
+        Searches for the compiled Rust binary in standard locations, then returns
+        an async mount function that spawns it, waits for the ``READY:<port>``
+        handshake, and connects via the gRPC loader bridge.
+
+        Args:
+            module_path: Path to the module directory.
+            module_id: Module identifier.
+            manifest: Resolved module manifest (from the Rust engine).
+            coordinator: The coordinator instance.
+
+        Returns:
+            Async mount function that spawns the Rust sidecar and connects via gRPC.
+
+        Raises:
+            FileNotFoundError: If the Rust binary cannot be found in any expected
+                location under *module_path*.
+        """
+        import subprocess as _subprocess
+
+        crate_name: str = manifest.get("crate_name", "") or ""
+        if not crate_name:
+            raise FileNotFoundError(
+                f"Rust sidecar for module '{module_id}': "
+                "'crate_name' not set in manifest — cannot locate binary"
+            )
+
+        # Search for the binary in standard build locations.
+        candidates: list[Path] = [
+            module_path / crate_name,
+            module_path / f"{crate_name}.exe",
+            module_path / "target" / "release" / crate_name,
+        ]
+
+        binary_path: Path | None = None
+        for candidate in candidates:
+            if candidate.exists():
+                binary_path = candidate
+                break
+
+        if binary_path is None:
+            searched = ", ".join(str(c) for c in candidates)
+            raise FileNotFoundError(
+                f"No Rust sidecar binary found for crate '{crate_name}' "
+                f"(module '{module_id}'). Searched: {searched}"
+            )
+
+        resolved_binary = binary_path  # capture for closure
+
+        async def rust_sidecar_mount(
+            coord: ModuleCoordinator,
+        ) -> Callable | None:
+            """Spawn the Rust sidecar, await READY:<port>, then connect via gRPC."""
+            import asyncio
+
+            from .loader_grpc import load_grpc_module as _load_grpc
+
+            proc = _subprocess.Popen(
+                [str(resolved_binary)],
+                stdout=_subprocess.PIPE,
+                stderr=_subprocess.PIPE,
+            )
+
+            ready_line: str | None = None
+            loop = asyncio.get_event_loop()
+            deadline = loop.time() + 10.0
+
+            while loop.time() < deadline:
+                # Check for early exit before attempting a read.
+                if proc.poll() is not None:
+                    raise RuntimeError(
+                        f"Rust sidecar process for module '{module_id}' exited early "
+                        f"(exit code: {proc.returncode})"
+                    )
+
+                # Non-blocking line read via select.
+                import select
+
+                assert proc.stdout is not None
+                readable, _, _ = select.select([proc.stdout], [], [], 0.05)
+                if readable:
+                    raw = proc.stdout.readline()
+                    line = raw.decode("utf-8", errors="replace").strip()
+                    if line.startswith("READY:"):
+                        ready_line = line
+                        break
+
+                await asyncio.sleep(0.05)
+
+            if ready_line is None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except _subprocess.TimeoutExpired:
+                    proc.kill()
+                raise TimeoutError(
+                    f"Rust sidecar for module '{module_id}' did not send "
+                    "READY:<port> within 10 seconds"
+                )
+
+            port = int(ready_line.split(":", 1)[1])
+
+            # Connect to the sidecar via the gRPC loader bridge.
+            meta: dict[str, Any] = {"grpc": {"endpoint": f"localhost:{port}"}}
+            grpc_mount = await _load_grpc(module_id, None, meta, coord)
+            grpc_cleanup = await grpc_mount(coord)
+
+            async def cleanup() -> None:
+                if grpc_cleanup is not None:
+                    try:
+                        await grpc_cleanup()
+                    except Exception:
+                        pass
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except _subprocess.TimeoutExpired:
+                    proc.kill()
+
+            return cleanup
+
+        return rust_sidecar_mount
 
     async def initialize(
         self, module: Any, coordinator: ModuleCoordinator
