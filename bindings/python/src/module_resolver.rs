@@ -55,6 +55,10 @@ pub(crate) fn resolve_module(py: Python<'_>, path: String) -> PyResult<Py<PyDict
             dict.set_item("artifact_type", "python")?;
             dict.set_item("package_name", name.as_str())?;
         }
+        amplifier_core::module_resolver::ModuleArtifact::RustCrate { crate_name } => {
+            dict.set_item("artifact_type", "rust")?;
+            dict.set_item("crate_name", crate_name.as_str())?;
+        }
     }
 
     Ok(dict.unbind())

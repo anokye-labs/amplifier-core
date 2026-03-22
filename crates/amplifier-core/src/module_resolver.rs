@@ -209,10 +209,17 @@ pub fn parse_amplifier_toml(
             ModuleArtifact::PythonModule(dir_name)
         }
         Transport::Rust => {
-            return Err(ModuleResolverError::TomlParseError {
-                path: module_path.to_path_buf(),
-                reason: "Rust transport is not yet implemented".to_string(),
-            });
+            let crate_name = module_section
+                .get("crate")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| ModuleResolverError::TomlParseError {
+                    path: module_path.to_path_buf(),
+                    reason: "Rust transport requires 'crate' field in [module] section"
+                        .to_string(),
+                })?;
+            ModuleArtifact::RustCrate {
+                crate_name: crate_name.to_string(),
+            }
         }
     };
 
@@ -264,6 +271,8 @@ pub enum ModuleArtifact {
     GrpcEndpoint(String),
     /// A Python package name (e.g., "amplifier_module_tool_bash").
     PythonModule(String),
+    /// A Rust crate name for native linking (Rust host) or binary identification (non-Rust host).
+    RustCrate { crate_name: String },
 }
 
 /// Detect a Python package at the given directory path.

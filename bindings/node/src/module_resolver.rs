@@ -37,6 +37,9 @@ pub struct JsModuleManifest {
 
     /// Python package name for import (present when `artifactType` is `"python"`).
     pub package_name: Option<String>,
+
+    /// Rust crate name for native linking (present when `artifactType` is `"rust"`).
+    pub crate_name: Option<String>,
 }
 
 /// Resolve a module from a filesystem path.
@@ -64,20 +67,32 @@ pub fn resolve_module(path: String) -> Result<JsModuleManifest> {
         amplifier_core::models::ModuleType::Resolver => "resolver",
     };
 
-    let (artifact_type, artifact_path, endpoint, package_name) = match &manifest.artifact {
-        amplifier_core::module_resolver::ModuleArtifact::WasmPath(path) => {
-            ("wasm", Some(path.to_string_lossy().to_string()), None, None)
-        }
-        amplifier_core::module_resolver::ModuleArtifact::WasmBytes { path, .. } => {
-            ("wasm", Some(path.to_string_lossy().to_string()), None, None)
-        }
-        amplifier_core::module_resolver::ModuleArtifact::GrpcEndpoint(ep) => {
-            ("grpc", None, Some(ep.clone()), None)
-        }
-        amplifier_core::module_resolver::ModuleArtifact::PythonModule(name) => {
-            ("python", None, None, Some(name.clone()))
-        }
-    };
+    let (artifact_type, artifact_path, endpoint, package_name, crate_name) =
+        match &manifest.artifact {
+            amplifier_core::module_resolver::ModuleArtifact::WasmPath(path) => (
+                "wasm",
+                Some(path.to_string_lossy().to_string()),
+                None,
+                None,
+                None,
+            ),
+            amplifier_core::module_resolver::ModuleArtifact::WasmBytes { path, .. } => (
+                "wasm",
+                Some(path.to_string_lossy().to_string()),
+                None,
+                None,
+                None,
+            ),
+            amplifier_core::module_resolver::ModuleArtifact::GrpcEndpoint(ep) => {
+                ("grpc", None, Some(ep.clone()), None, None)
+            }
+            amplifier_core::module_resolver::ModuleArtifact::PythonModule(name) => {
+                ("python", None, None, Some(name.clone()), None)
+            }
+            amplifier_core::module_resolver::ModuleArtifact::RustCrate { crate_name } => {
+                ("rust", None, None, None, Some(crate_name.clone()))
+            }
+        };
 
     Ok(JsModuleManifest {
         transport: transport.to_string(),
@@ -86,6 +101,7 @@ pub fn resolve_module(path: String) -> Result<JsModuleManifest> {
         artifact_path,
         endpoint,
         package_name,
+        crate_name,
     })
 }
 
