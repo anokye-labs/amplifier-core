@@ -875,6 +875,40 @@ endpoint = "http://localhost:50051"
         assert!(msg.contains("module"));
     }
 
+    #[test]
+    fn parse_toml_rust_transport() {
+        let toml_content = r#"
+[module]
+transport = "rust"
+type = "provider"
+crate = "amplifier_module_provider_unified"
+"#;
+        let path = Path::new("/modules/my-provider");
+        let manifest = parse_amplifier_toml(toml_content, path).unwrap();
+        assert_eq!(manifest.transport, Transport::Rust);
+        assert_eq!(manifest.module_type, ModuleType::Provider);
+        assert_eq!(
+            manifest.artifact,
+            ModuleArtifact::RustCrate {
+                crate_name: "amplifier_module_provider_unified".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn parse_toml_rust_transport_missing_crate_errors() {
+        let toml_content = r#"
+[module]
+transport = "rust"
+type = "provider"
+"#;
+        let path = Path::new("/modules/my-provider");
+        let result = parse_amplifier_toml(toml_content, path);
+        assert!(result.is_err());
+        let msg = format!("{}", result.unwrap_err());
+        assert!(msg.contains("crate"));
+    }
+
     // --- scan_for_wasm_file tests ---
 
     #[test]
