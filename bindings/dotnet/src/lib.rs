@@ -346,6 +346,11 @@ pub extern "C" fn amplifier_execute(
                 sh.session.cleanup().await;
             }
         }
+
+        // Notify C# that the task is complete and it's safe to dispose the session
+        if let (Some(cb), Some(seq)) = (event_cb, seq_ptr) {
+            emit_event(cb, seq, &session_id_owned, "ffi:complete", "{}");
+        }
     });
 
     0
