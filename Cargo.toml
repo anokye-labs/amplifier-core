@@ -4,6 +4,7 @@ members = [
     "crates/amplifier-guest",
     "bindings/python",
     "bindings/node",
+    "bindings/dotnet",
 ]
 resolver = "2"
 
