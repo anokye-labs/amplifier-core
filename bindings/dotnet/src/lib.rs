@@ -19,11 +19,17 @@
 
 use std::cell::RefCell;
 use std::ffi::{c_char, c_int, CStr, CString};
+use std::future::Future;
+use std::pin::Pin;
 use std::ptr;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 use tokio::runtime::Runtime;
+
+use amplifier_core::errors::HookError;
+use amplifier_core::models::{HookAction, HookResult};
+use amplifier_core::traits::HookHandler;
 
 // ---------------------------------------------------------------------------
 // Global Tokio runtime (created once, reused forever)
@@ -99,6 +105,54 @@ pub struct SessionHandle {
 // exclusive raw-pointer ownership. The parent pointer is stable for the
 // lifetime of the handle.
 unsafe impl Send for SessionHandle {}
+
+// ---------------------------------------------------------------------------
+// FfiHookHandler — forwards amplifier-core events through the OnEvent callback
+// ---------------------------------------------------------------------------
+
+/// Bridges the Rust `HookHandler` trait to the C ABI `OnEventCallback`.
+///
+/// Registered on the session's `HookRegistry` for every event in `ALL_EVENTS`.
+/// The `handle` method serialises the event payload to JSON and invokes the
+/// callback with monotonically increasing sequence numbers.
+struct FfiHookHandler {
+    callback: OnEventCallback,
+    session_id: String,
+    sequence: &'static AtomicU64,
+}
+
+// Safety: OnEventCallback is `extern "C" fn` (a plain function pointer) —
+// it is inherently Send + Sync.
+unsafe impl Send for FfiHookHandler {}
+unsafe impl Sync for FfiHookHandler {}
+
+impl HookHandler for FfiHookHandler {
+    fn handle(
+        &self,
+        event: &str,
+        data: serde_json::Value,
+    ) -> Pin<Box<dyn Future<Output = Result<HookResult, HookError>> + Send + '_>> {
+        let payload_json = serde_json::to_string(&data).unwrap_or_else(|_| "{}".to_string());
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+        let seq_num = self.sequence.fetch_add(1, Ordering::SeqCst);
+
+        let sid = CString::new(self.session_id.as_str()).unwrap_or_default();
+        let ename = CString::new(event).unwrap_or_default();
+        let payload = CString::new(payload_json.as_str()).unwrap_or_default();
+
+        (self.callback)(sid.as_ptr(), ename.as_ptr(), payload.as_ptr(), now_ms, seq_num);
+
+        Box::pin(async move {
+            Ok(HookResult {
+                action: HookAction::Continue,
+                ..Default::default()
+            })
+        })
+    }
+}
 
 // ---------------------------------------------------------------------------
 // FFI functions
@@ -242,6 +296,25 @@ pub extern "C" fn amplifier_execute(
         unsafe { &*(&p.sequence as *const AtomicU64) }
     });
     let session_id_owned = sh.session.session_id().to_owned();
+
+    // Register an FfiHookHandler on the session's hook registry so that
+    // events emitted during orchestration are forwarded through the callback.
+    if let Some(cb) = event_cb {
+        // Safety: parent handle outlives the spawned task (FFI contract),
+        // so seq_ptr is valid for the duration of execution.
+        let seq = seq_ptr.expect("event_cb is Some only when parent is Some");
+
+        let handler = Arc::new(FfiHookHandler {
+            callback: cb,
+            session_id: session_id_owned.clone(),
+            sequence: seq,
+        });
+
+        let hooks = sh.session.coordinator().hooks();
+        for event_name in amplifier_core::events::ALL_EVENTS {
+            let _ = hooks.register(event_name, handler.clone(), 0, Some("ffi-event-forwarder".to_string()));
+        }
+    }
 
     // Convert raw pointer to usize so the async block captures a Send type.
     // Safety: the FFI contract guarantees exclusive access to this handle
