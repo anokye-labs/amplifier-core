@@ -722,6 +722,10 @@ class ModuleLoader:
         an async mount function that spawns it, waits for the ``READY:<port>``
         handshake, and connects via the gRPC loader bridge.
 
+        Security note: The spawned binary runs with the same privileges and inherits
+        the same environment as the host process, including credential environment
+        variables. Only load Rust modules from trusted sources.
+
         Args:
             module_path: Path to the module directory.
             module_id: Module identifier.
@@ -772,11 +776,29 @@ class ModuleLoader:
             """Spawn the Rust sidecar, await READY:<port>, then connect via gRPC."""
             import asyncio
             import select
+            import socket
 
             from .loader_grpc import load_grpc_module as _load_grpc
 
+            # Fix 1 (H-03): Defense-in-depth — verify the resolved binary path does not
+            # escape the module directory (guards against symlink-based traversal).
+            resolved_binary_abs = resolved_binary.resolve()
+            module_path_abs = module_path.resolve()
+            if not str(resolved_binary_abs).startswith(str(module_path_abs)):
+                raise ValueError(
+                    f"Rust sidecar binary '{resolved_binary_abs}' escapes module directory "
+                    f"'{module_path_abs}' — possible path traversal"
+                )
+
+            # Fix 2: Host allocates the ephemeral port and passes it to the sidecar
+            # via --port.  This avoids a TOCTOU race where the sidecar could bind to
+            # a different port than the one it originally reported.
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as _s:
+                _s.bind(("127.0.0.1", 0))
+                allocated_port = _s.getsockname()[1]
+
             proc = _subprocess.Popen(
-                [str(resolved_binary)],
+                [str(resolved_binary), "--port", str(allocated_port)],
                 stdout=_subprocess.PIPE,
                 stderr=_subprocess.PIPE,
             )
@@ -818,7 +840,22 @@ class ModuleLoader:
                     "READY:<port> within 10 seconds"
                 )
 
-            port = int(ready_line.split(":", 1)[1])
+            # Fix 3: Validate port value (range + format) before using it.
+            try:
+                raw_port = ready_line.split(":", 1)[1]
+                port = int(raw_port)
+                if not (1 <= port <= 65535):
+                    raise ValueError(f"port {port} out of valid range")
+            except (IndexError, ValueError) as e:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except _subprocess.TimeoutExpired:
+                    proc.kill()
+                raise RuntimeError(
+                    f"Rust sidecar for module '{module_id}' sent malformed READY line "
+                    f"'{ready_line}': {e}"
+                ) from e
 
             # Connect to the sidecar via the gRPC loader bridge.
             meta: dict[str, Any] = {"grpc": {"endpoint": f"localhost:{port}"}}

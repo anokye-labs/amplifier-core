@@ -216,6 +216,23 @@ pub fn parse_amplifier_toml(
                     path: module_path.to_path_buf(),
                     reason: "Rust transport requires 'crate' field in [module] section".to_string(),
                 })?;
+
+            // H-03: crate name must be a simple identifier, not a path.
+            // Rejects traversal attempts like "../../evil", "/abs/path", or ".hidden".
+            if crate_name.contains('/')
+                || crate_name.contains('\\')
+                || crate_name.contains("..")
+                || crate_name.starts_with('.')
+            {
+                return Err(ModuleResolverError::TomlParseError {
+                    path: module_path.to_path_buf(),
+                    reason: format!(
+                        "crate name '{}' must be a simple identifier, not a path",
+                        crate_name
+                    ),
+                });
+            }
+
             ModuleArtifact::RustCrate {
                 crate_name: crate_name.to_string(),
             }
@@ -937,6 +954,109 @@ type = "provider"
         assert!(result.is_err());
         let msg = format!("{}", result.unwrap_err());
         assert!(msg.contains("crate"));
+    }
+
+    // --- Rust transport path traversal tests (H-03) ---
+
+    #[test]
+    fn parse_toml_rust_crate_with_slash_rejected() {
+        let toml_content = r#"
+[module]
+transport = "rust"
+type = "provider"
+crate = "../../evil"
+"#;
+        let path = Path::new("/modules/my-provider");
+        let result = parse_amplifier_toml(toml_content, path);
+        assert!(
+            result.is_err(),
+            "expected error for crate name with path separators"
+        );
+        let msg = format!("{}", result.unwrap_err());
+        assert!(
+            msg.contains("simple identifier"),
+            "error should mention 'simple identifier': {msg}"
+        );
+    }
+
+    #[test]
+    fn parse_toml_rust_crate_with_backslash_rejected() {
+        let toml_content = r#"
+[module]
+transport = "rust"
+type = "provider"
+crate = "evil\\path"
+"#;
+        let path = Path::new("/modules/my-provider");
+        let result = parse_amplifier_toml(toml_content, path);
+        assert!(
+            result.is_err(),
+            "expected error for crate name with backslash"
+        );
+        let msg = format!("{}", result.unwrap_err());
+        assert!(
+            msg.contains("simple identifier"),
+            "error should mention 'simple identifier': {msg}"
+        );
+    }
+
+    #[test]
+    fn parse_toml_rust_crate_with_dotdot_rejected() {
+        let toml_content = r#"
+[module]
+transport = "rust"
+type = "provider"
+crate = "some..crate"
+"#;
+        let path = Path::new("/modules/my-provider");
+        let result = parse_amplifier_toml(toml_content, path);
+        assert!(
+            result.is_err(),
+            "expected error for crate name containing '..'"
+        );
+        let msg = format!("{}", result.unwrap_err());
+        assert!(
+            msg.contains("simple identifier"),
+            "error should mention 'simple identifier': {msg}"
+        );
+    }
+
+    #[test]
+    fn parse_toml_rust_crate_leading_dot_rejected() {
+        let toml_content = r#"
+[module]
+transport = "rust"
+type = "provider"
+crate = ".hidden_crate"
+"#;
+        let path = Path::new("/modules/my-provider");
+        let result = parse_amplifier_toml(toml_content, path);
+        assert!(
+            result.is_err(),
+            "expected error for crate name starting with '.'"
+        );
+        let msg = format!("{}", result.unwrap_err());
+        assert!(
+            msg.contains("simple identifier"),
+            "error should mention 'simple identifier': {msg}"
+        );
+    }
+
+    #[test]
+    fn parse_toml_rust_crate_simple_identifier_accepted() {
+        let toml_content = r#"
+[module]
+transport = "rust"
+type = "provider"
+crate = "amplifier_module_provider_unified"
+"#;
+        let path = Path::new("/modules/my-provider");
+        let result = parse_amplifier_toml(toml_content, path);
+        assert!(
+            result.is_ok(),
+            "expected success for valid crate identifier, got: {:?}",
+            result.err()
+        );
     }
 
     // --- scan_for_wasm_file tests ---
