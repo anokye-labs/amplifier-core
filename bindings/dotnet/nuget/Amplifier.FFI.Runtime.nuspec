@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+  <metadata>
+    <id>Amplifier.FFI.Runtime</id>
+    <version>0.1.0</version>
+    <authors>anokye-labs</authors>
+    <description>Native runtime for amplifier-ffi (.NET P/Invoke bridge to amplifier-core).</description>
+    <license type="expression">MIT</license>
+    <readme>README.md</readme>
+  </metadata>
+  <files>
+    <file src="README.md" target="" />
+    <!-- win-x64 -->
+    <file src="runtimes\win-x64\native\amplifier_ffi.dll" target="runtimes\win-x64\native" />
+    <!-- linux-x64 -->
+    <file src="runtimes\linux-x64\native\libamplifier_ffi.so" target="runtimes\linux-x64\native" />
+  </files>
+</package>

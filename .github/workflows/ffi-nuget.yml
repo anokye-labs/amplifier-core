@@ -1,0 +1,75 @@
+name: FFI NuGet Package
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build-native:
+    name: Build FFI (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            artifact: amplifier_ffi.dll
+          - os: ubuntu-latest
+            rid: linux-x64
+            artifact: libamplifier_ffi.so
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build amplifier-ffi
+        run: cargo build --release -p amplifier-ffi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ffi-${{ matrix.rid }}
+          path: target/release/${{ matrix.artifact }}
+
+  pack:
+    name: Pack NuGet
+    needs: build-native
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download win-x64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ffi-win-x64
+          path: bindings/dotnet/nuget/runtimes/win-x64/native
+
+      - name: Download linux-x64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ffi-linux-x64
+          path: bindings/dotnet/nuget/runtimes/linux-x64/native
+
+      - name: Set version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          sed -i "s|<version>0.1.0</version>|<version>${VERSION}</version>|" \
+            bindings/dotnet/nuget/Amplifier.FFI.Runtime.nuspec
+
+      - name: Pack
+        run: |
+          dotnet tool install --global NuGetKeyVaultSignTool 2>/dev/null || true
+          cd bindings/dotnet/nuget
+          dotnet pack --no-build 2>/dev/null || nuget pack Amplifier.FFI.Runtime.nuspec -OutputDirectory out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nuget-package
+          path: bindings/dotnet/nuget/out/*.nupkg
+
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: gh release upload "${{ github.ref_name }}" bindings/dotnet/nuget/out/*.nupkg
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
