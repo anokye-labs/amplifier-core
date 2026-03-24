@@ -50,18 +50,21 @@ jobs:
           name: ffi-linux-x64
           path: bindings/dotnet/nuget/runtimes/linux-x64/native
 
-      - name: Set version from tag
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Determine version
+        id: version
         run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
-          sed -i "s|<version>0.1.0</version>|<version>${VERSION}</version>|" \
-            bindings/dotnet/nuget/Amplifier.FFI.Runtime.nuspec
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=0.1.0-dev" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Pack
-        run: |
-          dotnet tool install --global NuGetKeyVaultSignTool 2>/dev/null || true
-          cd bindings/dotnet/nuget
-          dotnet pack --no-build 2>/dev/null || nuget pack Amplifier.FFI.Runtime.nuspec -OutputDirectory out
+        run: >
+          dotnet pack bindings/dotnet/nuget/Amplifier.FFI.Runtime.csproj
+          --no-build
+          -p:Version=${{ steps.version.outputs.version }}
+          --output bindings/dotnet/nuget/out
 
       - uses: actions/upload-artifact@v4
         with:
