@@ -60,11 +60,12 @@ jobs:
           fi
 
       - name: Pack
-        run: >
-          dotnet pack bindings/dotnet/nuget/Amplifier.FFI.Runtime.csproj
-          --no-build
-          -p:Version=${{ steps.version.outputs.version }}
-          --output bindings/dotnet/nuget/out
+        run: |
+          dotnet restore bindings/dotnet/nuget/Amplifier.FFI.Runtime.csproj
+          dotnet pack bindings/dotnet/nuget/Amplifier.FFI.Runtime.csproj \
+            --no-build \
+            -p:Version=${{ steps.version.outputs.version }} \
+            --output bindings/dotnet/nuget/out
 
       - uses: actions/upload-artifact@v4
         with:
