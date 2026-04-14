@@ -14,6 +14,10 @@ on:
       - 'python/amplifier_core/_grpc_gen/**'
       - 'crates/amplifier-core/src/generated/**'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   proto-sync:
     name: Verify Python stubs match proto
