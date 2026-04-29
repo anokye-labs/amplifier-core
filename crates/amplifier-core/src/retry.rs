@@ -143,8 +143,8 @@ pub fn compute_delay(
     // (5) Add jitter: multiply by random factor in [0.5, 1.5)
     if config.jitter {
         use rand::Rng;
-        let mut rng = rand::thread_rng();
-        delay *= rng.gen_range(0.5..1.5);
+        let mut rng = rand::rng();
+        delay *= rng.random_range(0.5..1.5);
     }
 
     delay
